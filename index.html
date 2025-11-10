@@ -31,8 +31,7 @@
 // ========================================
 // ⚠️ CONFIGURATION SECTION - EDIT THIS! ⚠️
 // ========================================
-// Replace with your n8n webhook URL
-const N8N_WEBHOOK_URL = 'https://primary-production-3af69.up.railway.app/webhook-test/NewLeadGen';
+const N8N_WEBHOOK_URL = 'YOUR_N8N_WEBHOOK_URL_HERE';
 // Example: 'https://your-n8n-instance.com/webhook/lead-campaign'
 // ========================================
 
@@ -115,15 +114,104 @@ function startElapsedTimeCounter() {
     }, 1000);
 }
 
+// Extract actual data from nested n8n response format
+function extractResponseData(rawData) {
+    console.log('🔍 Extracting data from response:', rawData);
+
+    // Handle direct format (what we want)
+    if (rawData.leads || rawData.hot_leads || rawData.campaignId) {
+        console.log('✅ Direct format detected');
+        return rawData;
+    }
+
+    // Handle nested array format from n8n
+    if (Array.isArray(rawData)) {
+        console.log('📦 Array wrapper detected, unwrapping...');
+
+        // If array has items, take first
+        if (rawData.length > 0) {
+            const firstItem = rawData[0];
+
+            // Check for output array
+            if (firstItem.output && Array.isArray(firstItem.output)) {
+                console.log('📦 Output array detected');
+                const output = firstItem.output[0];
+
+                // Check for content array
+                if (output && output.content && Array.isArray(output.content)) {
+                    console.log('📦 Content array detected');
+                    const content = output.content[0];
+
+                    // Get the actual data from text field
+                    if (content && content.text) {
+                        console.log('✅ Found text data');
+                        return content.text;
+                    }
+                }
+            }
+
+            // If direct object in array
+            return firstItem;
+        }
+    }
+
+    console.log('⚠️ Using raw data as-is');
+    return rawData;
+}
+
+// Process leads data and separate hot vs cold
+function processLeadsData(data) {
+    console.log('📊 Processing leads data:', data);
+
+    // Extract the actual leads data
+    const extractedData = extractResponseData(data);
+
+    // If we have a leads array, process it
+    if (extractedData.leads && Array.isArray(extractedData.leads)) {
+        const leads = extractedData.leads;
+        const hotLeads = leads.filter(l => l.classification === 'Hot' || l.classification === 'hot');
+        const coldLeads = leads.filter(l => l.classification === 'Cold' || l.classification === 'cold');
+
+        console.log(`✅ Processed: ${hotLeads.length} hot, ${coldLeads.length} cold leads`);
+
+        return {
+            campaignId: extractedData.campaignId || 'generated-' + Date.now(),
+            hot_leads: {
+                count: hotLeads.length,
+                leads: hotLeads,
+                word_report_url: extractedData.word_report_url || null,
+                pdf_report_url: extractedData.pdf_report_url || null
+            },
+            other_leads: {
+                count: coldLeads.length,
+                leads: coldLeads
+            }
+        };
+    }
+
+    // If already in correct format
+    if (extractedData.hot_leads && extractedData.other_leads) {
+        console.log('✅ Data already in correct format');
+        return extractedData;
+    }
+
+    // Fallback
+    console.log('⚠️ Using data as-is');
+    return {
+        campaignId: 'unknown',
+        hot_leads: { count: 0 },
+        other_leads: { count: 0 }
+    };
+}
+
 async function triggerCampaign(campaignJson, pipeline) {
     if (!CONFIG.webhookUrl || CONFIG.webhookUrl === 'YOUR_N8N_WEBHOOK_URL_HERE') {
-        showToast('❌ ERROR: Webhook URL not configured! Edit line 20 in HTML', 'error', 8000);
-        console.error('Webhook URL not configured');
+        showToast('❌ ERROR: Webhook URL not configured! Edit line 20', 'error', 8000);
         return null;
     }
 
-    console.log('📤 Triggering campaign at:', CONFIG.webhookUrl);
-    console.log('📦 Sending data:', { campaign_json: JSON.parse(campaignJson), pipeline });
+    console.log('📤 Sending to:', CONFIG.webhookUrl);
+    console.log('📦 Data:', { campaign_json: JSON.parse(campaignJson), pipeline });
 
     try {
         const response = await fetch(CONFIG.webhookUrl, {
@@ -139,33 +227,30 @@ async function triggerCampaign(campaignJson, pipeline) {
             })
         });
 
-        console.log('📊 Response status:', response.status, response.statusText);
+        console.log('📊 Response status:', response.status);
 
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
-        // Check if response has content
-        const contentType = response.headers.get('content-type');
-        console.log('📋 Content-Type:', contentType);
-
-        if (!contentType || !contentType.includes('application/json')) {
-            throw new Error('Response is not JSON. Check your n8n "Respond to Webhook" node settings.');
-        }
-
         const text = await response.text();
-        console.log('📄 Raw response:', text);
+        console.log('📄 Raw response text:', text);
 
         if (!text || text.trim() === '') {
-            throw new Error('Empty response from webhook. Make sure "Respond to Webhook" node is configured.');
+            throw new Error('Empty response. Check "Respond to Webhook" node configuration.');
         }
 
-        const data = JSON.parse(text);
-        console.log('✅ Parsed response:', data);
-        return data;
+        const rawData = JSON.parse(text);
+        console.log('📦 Parsed raw data:', rawData);
+
+        // Process the response to extract actual data
+        const processedData = processLeadsData(rawData);
+        console.log('✅ Final processed data:', processedData);
+
+        return processedData;
 
     } catch (error) {
-        console.error('❌ Error details:', error);
+        console.error('❌ Error:', error);
         showToast(`❌ Error: ${error.message}`, 'error', 8000);
         return null;
     }
@@ -175,37 +260,52 @@ function displayResults(data) {
     console.log('📊 Displaying results:', data);
     document.getElementById('resultsSection').classList.remove('hidden');
 
-    const hotLeads = data.hot_leads || data.hotLeads || { count: 0 };
-    const otherLeads = data.other_leads || data.otherLeads || { count: 0 };
+    const hotLeads = data.hot_leads || { count: 0 };
+    const otherLeads = data.other_leads || { count: 0 };
     const totalLeads = (hotLeads.count || 0) + (otherLeads.count || 0);
 
     document.getElementById('hotLeadsCount').textContent = hotLeads.count || 0;
     document.getElementById('otherLeadsCount').textContent = otherLeads.count || 0;
     document.getElementById('totalLeads').textContent = totalLeads;
 
-    const conversionPotential = totalLeads > 0 ? Math.round((hotLeads.count / totalLeads) * 100) : 0;
-    document.getElementById('conversionPotential').textContent = conversionPotential + '%';
+    const conversionRate = totalLeads > 0 ? Math.round((hotLeads.count / totalLeads) * 100) : 0;
+    document.getElementById('conversionPotential').textContent = conversionRate + '%';
+
+    // Display hot leads list if available
+    if (hotLeads.leads && hotLeads.leads.length > 0) {
+        const hotLeadsList = document.getElementById('hotLeadsList');
+        hotLeadsList.innerHTML = '';
+        hotLeads.leads.forEach(lead => {
+            const leadCard = document.createElement('div');
+            leadCard.className = 'bg-white dark:bg-gray-700 p-4 rounded-lg border border-green-200 dark:border-green-700';
+            leadCard.innerHTML = `
+                <h4 class="font-bold text-gray-900 dark:text-white">${lead.business_name}</h4>
+                <p class="text-sm text-gray-600 dark:text-gray-300">Employees: ${lead.lead_data?.employees || 'N/A'}</p>
+                <p class="text-sm text-gray-600 dark:text-gray-300">Revenue: $${(lead.lead_data?.revenue || 0).toLocaleString()}</p>
+                <p class="text-sm text-gray-600 dark:text-gray-300">Followers: ${(lead.lead_data?.social_media_followers || 0).toLocaleString()}</p>
+            `;
+            hotLeadsList.appendChild(leadCard);
+        });
+        document.getElementById('hotLeadsListSection').classList.remove('hidden');
+    }
 
     // Set up download buttons
-    if (hotLeads.word_report_url || hotLeads.wordReportUrl) {
-        const wordUrl = hotLeads.word_report_url || hotLeads.wordReportUrl;
+    if (hotLeads.word_report_url) {
         document.getElementById('downloadWordBtn').onclick = () => {
-            window.open(wordUrl, '_blank');
+            window.open(hotLeads.word_report_url, '_blank');
             showToast('📄 Downloading Word report...', 'info');
         };
         document.getElementById('downloadWordBtn').disabled = false;
     }
 
-    if (hotLeads.pdf_report_url || hotLeads.pdfReportUrl) {
-        const pdfUrl = hotLeads.pdf_report_url || hotLeads.pdfReportUrl;
+    if (hotLeads.pdf_report_url) {
         document.getElementById('downloadPdfBtn').onclick = () => {
-            window.open(pdfUrl, '_blank');
+            window.open(hotLeads.pdf_report_url, '_blank');
             showToast('📑 Downloading PDF report...', 'info');
         };
         document.getElementById('downloadPdfBtn').disabled = false;
     }
 
-    // Calculate duration
     if (campaignStartTime) {
         const duration = Math.floor((Date.now() - campaignStartTime) / 1000);
         const minutes = Math.floor(duration / 60);
@@ -237,6 +337,7 @@ function resetDashboard() {
 
     document.getElementById('statusSection').classList.add('hidden');
     document.getElementById('resultsSection').classList.add('hidden');
+    document.getElementById('hotLeadsListSection').classList.add('hidden');
     document.getElementById('runCampaignBtn').disabled = false;
     currentCampaignId = null;
     isRunning = false;
@@ -248,42 +349,37 @@ async function runDemoMode() {
     document.getElementById('campaignId').textContent = currentCampaignId;
 
     const statuses = [
-        { status: 'running', progress: 10, step: 'Initializing campaign...' },
-        { status: 'running', progress: 30, step: 'Scraping LinkedIn profiles...' },
+        { status: 'running', progress: 20, step: 'Scraping LinkedIn...' },
         { status: 'running', progress: 50, step: 'Enriching leads with AI...' },
-        { status: 'running', progress: 75, step: 'Scoring and categorizing...' },
-        { status: 'running', progress: 90, step: 'Generating reports...' },
+        { status: 'running', progress: 80, step: 'Classifying leads...' },
         { status: 'completed', progress: 100, step: 'Campaign completed!' }
     ];
 
     for (const statusUpdate of statuses) {
-        await new Promise(resolve => {
-            setTimeout(() => {
-                updateStatusUI(statusUpdate.status, statusUpdate.progress, statusUpdate.step);
-                resolve();
-            }, 1500);
-        });
+        await new Promise(resolve => setTimeout(() => {
+            updateStatusUI(statusUpdate.status, statusUpdate.progress, statusUpdate.step);
+            resolve();
+        }, 1500));
     }
 
-    displayResults({
-        campaignId: currentCampaignId,
-        hot_leads: { 
-            count: 15, 
-            word_report_url: 'https://example.com/report.docx',
-            pdf_report_url: 'https://example.com/report.pdf'
-        },
-        other_leads: { count: 45 }
-    });
+    // Simulate nested response format
+    const mockResponse = {
+        leads: [
+            { lead_number: 1, business_name: "Global Enterprises", classification: "Hot", lead_data: { employees: 1200, revenue: 20000000, social_media_followers: 75000 }},
+            { lead_number: 2, business_name: "Bright Future Ltd.", classification: "Cold", lead_data: { employees: 40, revenue: 800000, social_media_followers: 1500 }},
+            { lead_number: 3, business_name: "Innovative Solutions", classification: "Hot", lead_data: { employees: 800, revenue: 30000000, social_media_followers: 95000 }},
+        ]
+    };
 
+    const processedData = processLeadsData(mockResponse);
+    displayResults(processedData);
     showToast('✅ Demo campaign completed!', 'success');
     isRunning = false;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Set sample JSON on load
     resetDashboard();
 
-    // Dark mode toggle
     const darkModeToggle = document.getElementById('darkModeToggle');
     darkModeToggle.addEventListener('change', () => {
         document.documentElement.classList.toggle('dark');
@@ -295,36 +391,30 @@ document.addEventListener('DOMContentLoaded', () => {
         document.documentElement.classList.add('dark');
     }
 
-    // Demo mode toggle
     const demoModeToggle = document.getElementById('demoModeToggle');
     demoModeToggle.addEventListener('change', () => {
         isDemoMode = demoModeToggle.checked;
         if (isDemoMode) showToast('🎮 Demo mode enabled', 'info');
     });
 
-    // JSON textarea validation
     document.getElementById('campaignJson').addEventListener('input', updateJSONValidation);
 
-    // File upload
     const fileInput = document.getElementById('fileInput');
     const dropZone = document.getElementById('dropZone');
 
     dropZone.addEventListener('click', () => fileInput.click());
-    dropZone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropZone.classList.add('border-blue-400');
-    });
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-blue-400'); });
     dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-blue-400'));
     dropZone.addEventListener('drop', (e) => {
         e.preventDefault();
         dropZone.classList.remove('border-blue-400');
         const file = e.dataTransfer.files[0];
-        if (file && (file.type === 'application/json' || file.name.endsWith('.json'))) {
+        if (file && file.name.endsWith('.json')) {
             const reader = new FileReader();
             reader.onload = (event) => {
                 document.getElementById('campaignJson').value = event.target.result;
                 updateJSONValidation();
-                showToast('📄 JSON file loaded', 'success');
+                showToast('📄 JSON loaded', 'success');
             };
             reader.readAsText(file);
         }
@@ -337,13 +427,12 @@ document.addEventListener('DOMContentLoaded', () => {
             reader.onload = (event) => {
                 document.getElementById('campaignJson').value = event.target.result;
                 updateJSONValidation();
-                showToast('📄 JSON file loaded', 'success');
+                showToast('📄 JSON loaded', 'success');
             };
             reader.readAsText(file);
         }
     });
 
-    // Run campaign button
     document.getElementById('runCampaignBtn').addEventListener('click', async () => {
         const campaignJson = document.getElementById('campaignJson').value;
         const pipeline = document.getElementById('pipelineSelect').value;
@@ -353,61 +442,40 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Show status section
         document.getElementById('statusSection').classList.remove('hidden');
-        updateStatusUI('pending', 0, 'Initializing campaign...');
+        updateStatusUI('pending', 0, 'Initializing...');
         isRunning = true;
         startElapsedTimeCounter();
-
-        // Disable button during processing
         document.getElementById('runCampaignBtn').disabled = true;
 
         if (isDemoMode) {
-            // Run demo mode
             await runDemoMode();
             document.getElementById('runCampaignBtn').disabled = false;
         } else {
-            // Trigger actual campaign
-            updateStatusUI('running', 10, 'Sending request to n8n...');
-
+            updateStatusUI('running', 10, 'Sending to n8n...');
             const response = await triggerCampaign(campaignJson, pipeline);
 
             if (response) {
-                currentCampaignId = response.campaignId || response.campaign_id || 'unknown';
+                currentCampaignId = response.campaignId || 'unknown';
                 document.getElementById('campaignId').textContent = currentCampaignId;
-
-                // Update progress
-                updateStatusUI('running', 50, 'Processing campaign...');
-
-                // Check if we got full results in first response
-                if (response.hot_leads || response.hotLeads) {
-                    updateStatusUI('completed', 100, 'Campaign completed!');
-                    displayResults(response);
-                    showToast('✅ Campaign completed successfully!', 'success');
-                } else {
-                    updateStatusUI('completed', 100, 'Campaign started!');
-                    showToast('✅ Campaign triggered! Waiting for results...', 'info');
-                }
-
-                isRunning = false;
-                document.getElementById('runCampaignBtn').disabled = false;
+                updateStatusUI('completed', 100, 'Campaign completed!');
+                displayResults(response);
+                showToast('✅ Campaign completed!', 'success');
             } else {
-                // Error occurred
                 updateStatusUI('error', 0, 'Campaign failed');
-                isRunning = false;
-                document.getElementById('runCampaignBtn').disabled = false;
             }
+
+            isRunning = false;
+            document.getElementById('runCampaignBtn').disabled = false;
         }
     });
 
-    // Stop campaign button
     document.getElementById('stopCampaignBtn').addEventListener('click', () => {
         isRunning = false;
-        showToast('⏹️ Campaign stopped', 'warning');
+        showToast('⏹️ Stopped', 'warning');
         document.getElementById('runCampaignBtn').disabled = false;
     });
 
-    // New campaign button
     document.getElementById('newCampaignBtn').addEventListener('click', () => {
         resetDashboard();
         window.scrollTo(0, 0);
@@ -416,7 +484,6 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 
 <div class="min-h-screen">
-    <!-- Header -->
     <header class="bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-50">
         <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             <div class="flex justify-between items-center">
@@ -439,8 +506,6 @@ document.addEventListener('DOMContentLoaded', () => {
     </header>
 
     <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-
-        <!-- Campaign Upload -->
         <section class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
             <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Campaign Configuration</h2>
 
@@ -454,50 +519,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
             <div class="mb-6">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Campaign JSON</label>
-                <textarea id="campaignJson" class="w-full h-64 p-4 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg font-mono text-sm" placeholder="Paste your campaign JSON here..."></textarea>
+                <textarea id="campaignJson" class="w-full h-64 p-4 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg font-mono text-sm"></textarea>
                 <p class="text-xs text-red-600 dark:text-red-400 mt-2 hidden" id="jsonError"></p>
             </div>
 
-            <!-- Sample JSON Info -->
             <div class="mb-6 p-4 bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg">
                 <p class="text-sm text-blue-900 dark:text-blue-100 mb-2">
-                    <strong>📋 Sample JSON Loaded:</strong> Modify the fields above to match your campaign needs.
+                    <strong>📋 Sample JSON Loaded:</strong> Modify the fields above for your campaign.
                 </p>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-blue-800 dark:text-blue-200">
-                    <div>
-                        <strong>📌 Required Fields:</strong>
-                        <ul class="list-disc list-inside ml-2">
-                            <li>campaign_name</li>
-                            <li>target (industry, location)</li>
-                            <li>scraping_sources</li>
-                        </ul>
-                    </div>
-                    <div>
-                        <strong>⚙️ Optional Fields:</strong>
-                        <ul class="list-disc list-inside ml-2">
-                            <li>enrichment settings</li>
-                            <li>hot_lead_threshold</li>
-                            <li>report_format</li>
-                        </ul>
-                    </div>
-                </div>
             </div>
 
             <div class="mb-6">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Select Pipeline</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Pipeline</label>
                 <select id="pipelineSelect" class="w-full p-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg">
                     <option value="linkedin">LinkedIn/Web Scraping</option>
-                    <option value="google_maps">Google Maps Scraping</option>
-                    <option value="social_media">Social Media Scraping</option>
+                    <option value="google_maps">Google Maps</option>
+                    <option value="social_media">Social Media</option>
                 </select>
             </div>
 
-            <button id="runCampaignBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            <button id="runCampaignBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
                 Run Campaign
             </button>
         </section>
 
-        <!-- Campaign Status -->
         <section id="statusSection" class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6 hidden slide-in">
             <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Campaign Status</h2>
 
@@ -517,20 +562,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="w-4 h-4 rounded-full" id="statusIndicator"></div>
                     <span class="font-semibold text-gray-900 dark:text-white" id="statusText">Pending</span>
                 </div>
-                <p class="text-sm text-gray-600 dark:text-gray-400 mb-4" id="currentStep">Waiting to start...</p>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-4" id="currentStep">Waiting...</p>
 
-                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
                     <div id="progressBar" class="bg-blue-600 h-3 w-0 transition-all duration-500"></div>
                 </div>
                 <p class="text-sm text-gray-600 dark:text-gray-400 mt-2" id="progressText">0%</p>
             </div>
 
             <button id="stopCampaignBtn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">
-                Stop Campaign
+                Stop
             </button>
         </section>
 
-        <!-- Results -->
         <section id="resultsSection" class="hidden">
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6 slide-in">
                 <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">🔥 Hot Leads</h2>
@@ -546,11 +590,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>
 
+                <div id="hotLeadsListSection" class="mb-6 hidden">
+                    <h3 class="font-bold text-gray-900 dark:text-white mb-3">Lead Details:</h3>
+                    <div id="hotLeadsList" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+                </div>
+
                 <div class="flex flex-col sm:flex-row gap-3">
-                    <button id="downloadWordBtn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                    <button id="downloadWordBtn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed" disabled>
                         📄 Download Word
                     </button>
-                    <button id="downloadPdfBtn" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                    <button id="downloadPdfBtn" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed" disabled>
                         📑 Download PDF
                     </button>
                 </div>
@@ -562,15 +611,15 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
 
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-                <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Campaign Summary</h2>
+                <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Summary</h2>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                        <p class="text-sm text-gray-600 dark:text-gray-400">Total Leads</p>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Total</p>
                         <p class="text-2xl font-bold text-gray-900 dark:text-white" id="totalLeads">0</p>
                     </div>
                     <div>
-                        <p class="text-sm text-gray-600 dark:text-gray-400">Hot Leads</p>
-                        <p class="text-2xl font-bold text-green-600" id="hotLeadsCount2">0</p>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Hot</p>
+                        <p class="text-2xl font-bold text-green-600">-</p>
                     </div>
                     <div>
                         <p class="text-sm text-gray-600 dark:text-gray-400">Duration</p>
@@ -578,7 +627,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>
                 <button id="newCampaignBtn" class="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">
-                    Start New Campaign
+                    New Campaign
                 </button>
             </div>
         </section>
@@ -586,7 +635,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     <footer class="bg-gray-800 text-gray-300 text-center py-6 mt-12">
         <p class="text-sm">© 2025 Lead Generation Dashboard</p>
-        <p class="text-xs text-gray-500 mt-2">Version 1.0.0 | Powered by n8n</p>
     </footer>
 </div>
 
