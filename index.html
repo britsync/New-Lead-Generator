@@ -6,38 +6,18 @@
     <title>Lead Generation Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        @keyframes pulse-ring {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-        }
+        @keyframes pulse-ring { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
         .pulse-ring { animation: pulse-ring 2s infinite; }
-        @keyframes slideIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .slide-in { animation: slideIn 0.3s ease-out; }
-        .toast {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 9999;
-            animation: slideIn 0.3s ease-out;
-        }
+        .toast { position: fixed; top: 20px; right: 20px; z-index: 9999; animation: slideIn 0.3s ease-out; }
     </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
 
 <script>
-// ========================================
-// ⚠️ CONFIGURATION SECTION - EDIT THIS! ⚠️
-// ========================================
 const N8N_WEBHOOK_URL = 'https://primary-production-3af69.up.railway.app/webhook-test/NewLeadGen';
-// Example: 'https://your-n8n-instance.com/webhook/lead-campaign'
-// ========================================
-
-const CONFIG = {
-    webhookUrl: N8N_WEBHOOK_URL,
-};
+const CONFIG = { webhookUrl: N8N_WEBHOOK_URL };
 
 let currentCampaignId = null;
 let campaignStartTime = null;
@@ -45,12 +25,7 @@ let isDemoMode = false;
 let isRunning = false;
 
 function showToast(message, type = 'info', duration = 5000) {
-    const colors = {
-        success: 'bg-green-500',
-        error: 'bg-red-500',
-        info: 'bg-blue-500',
-        warning: 'bg-yellow-500'
-    };
+    const colors = { success: 'bg-green-500', error: 'bg-red-500', info: 'bg-blue-500', warning: 'bg-yellow-500' };
     const toast = document.createElement('div');
     toast.className = `toast ${colors[type]} text-white px-6 py-3 rounded-lg shadow-lg`;
     toast.textContent = message;
@@ -66,19 +41,9 @@ function updateJSONValidation() {
     const json = document.getElementById('campaignJson').value.trim();
     const errorElement = document.getElementById('jsonError');
     const runBtn = document.getElementById('runCampaignBtn');
-    if (json === '') {
-        errorElement.classList.add('hidden');
-        runBtn.disabled = true;
-        return;
-    }
-    if (validateJSON(json)) {
-        errorElement.classList.add('hidden');
-        runBtn.disabled = false;
-    } else {
-        errorElement.textContent = 'Invalid JSON. Please check your input format.';
-        errorElement.classList.remove('hidden');
-        runBtn.disabled = true;
-    }
+    if (json === '') { errorElement.classList.add('hidden'); runBtn.disabled = true; return; }
+    if (validateJSON(json)) { errorElement.classList.add('hidden'); runBtn.disabled = false; }
+    else { errorElement.textContent = 'Invalid JSON'; errorElement.classList.remove('hidden'); runBtn.disabled = true; }
 }
 
 function updateStatusUI(status, progress = 0, step = '') {
@@ -106,100 +71,80 @@ function startElapsedTimeCounter() {
             const elapsed = Math.floor((Date.now() - campaignStartTime) / 1000);
             const minutes = Math.floor(elapsed / 60);
             const seconds = elapsed % 60;
-            document.getElementById('elapsedTime').textContent = 
-                `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
-        } else {
-            clearInterval(counter);
-        }
+            document.getElementById('elapsedTime').textContent = `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
+        } else { clearInterval(counter); }
     }, 1000);
 }
 
-// Extract actual data from nested n8n response format
 function extractResponseData(rawData) {
-    console.log('🔍 Extracting data from response:', rawData);
-    console.log('📦 Raw data type:', typeof rawData, Array.isArray(rawData) ? '(Array)' : '');
+    console.log('🔍 RAW RESPONSE:', JSON.stringify(rawData, null, 2));
 
-    // Handle direct format (what we want)
-    if (rawData && rawData.leads) {
-        console.log('✅ Direct format with leads array detected');
+    // Direct format with leads
+    if (rawData && rawData.leads && Array.isArray(rawData.leads)) {
+        console.log('✅ Direct leads array found:', rawData.leads.length, 'leads');
         return rawData;
     }
 
-    if (rawData && (rawData.hot_leads || rawData.campaignId)) {
-        console.log('✅ Direct format detected');
-        return rawData;
-    }
-
-    // Handle nested array format from n8n "All Incoming Items"
+    // Handle [0].output[0].content[0].text.leads structure
     if (Array.isArray(rawData) && rawData.length > 0) {
-        console.log('📦 Array wrapper detected, unwrapping...');
-        const firstItem = rawData[0];
-        console.log('📦 First item:', firstItem);
+        console.log('📦 Array detected, length:', rawData.length);
+        const item = rawData[0];
 
-        // Check for output array (n8n "All Incoming Items" format)
-        if (firstItem.output && Array.isArray(firstItem.output)) {
-            console.log('📦 Output array detected');
+        if (item.output && Array.isArray(item.output) && item.output.length > 0) {
+            console.log('📦 Output array found');
+            const output = item.output[0];
 
-            if (firstItem.output.length > 0) {
-                const output = firstItem.output[0];
-                console.log('📦 Output content:', output);
+            if (output.content && Array.isArray(output.content) && output.content.length > 0) {
+                console.log('📦 Content array found');
+                const content = output.content[0];
 
-                // Check for content array
-                if (output.content && Array.isArray(output.content)) {
-                    console.log('📦 Content array detected');
-
-                    if (output.content.length > 0) {
-                        const content = output.content[0];
-                        console.log('📦 Content item:', content);
-
-                        // Get the actual data from text field
-                        if (content.text) {
-                            console.log('✅ Found text data:', content.text);
-                            return content.text;
-                        }
+                if (content.text) {
+                    console.log('✅ Text object found:', content.text);
+                    if (content.text.leads) {
+                        console.log('✅ LEADS EXTRACTED:', content.text.leads.length, 'leads');
+                        return content.text;
                     }
-                }
-
-                // Sometimes the data is directly in output
-                if (output.leads) {
-                    console.log('✅ Found leads in output');
-                    return output;
+                    return content.text;
                 }
             }
         }
 
-        // If the first item itself has leads
-        if (firstItem.leads) {
-            console.log('✅ Found leads in first item');
-            return firstItem;
+        // Try direct item
+        if (item.leads) {
+            console.log('✅ Leads in first item');
+            return item;
         }
-
-        // Try the first item directly
-        console.log('⚠️ Using first item as-is');
-        return firstItem;
     }
 
-    console.log('⚠️ Using raw data as-is');
+    console.log('⚠️ No extraction pattern matched, returning as-is');
     return rawData;
 }
 
-// Process leads data and separate hot vs cold
 function processLeadsData(data) {
-    console.log('📊 Processing leads data:', data);
+    console.log('📊 PROCESSING DATA:', data);
 
-    // Extract the actual leads data
     const extractedData = extractResponseData(data);
+    console.log('📊 EXTRACTED DATA:', extractedData);
 
-    // If we have a leads array, process it
-    if (extractedData.leads && Array.isArray(extractedData.leads)) {
+    if (extractedData && extractedData.leads && Array.isArray(extractedData.leads)) {
         const leads = extractedData.leads;
-        const hotLeads = leads.filter(l => l.classification === 'Hot' || l.classification === 'hot');
-        const coldLeads = leads.filter(l => l.classification === 'Cold' || l.classification === 'cold');
+        console.log('📊 Total leads:', leads.length);
 
-        console.log(`✅ Processed: ${hotLeads.length} hot, ${coldLeads.length} cold leads`);
+        const hotLeads = leads.filter(l => {
+            const classification = (l.classification || '').toLowerCase();
+            console.log(`Lead ${l.lead_number}: ${l.business_name} - ${classification}`);
+            return classification === 'hot';
+        });
+
+        const coldLeads = leads.filter(l => {
+            const classification = (l.classification || '').toLowerCase();
+            return classification === 'cold';
+        });
+
+        console.log(`✅ HOT: ${hotLeads.length}, COLD: ${coldLeads.length}`);
 
         return {
-            campaignId: extractedData.campaignId || 'generated-' + Date.now(),
+            campaignId: extractedData.campaignId || 'campaign-' + Date.now(),
             hot_leads: {
                 count: hotLeads.length,
                 leads: hotLeads,
@@ -213,37 +158,22 @@ function processLeadsData(data) {
         };
     }
 
-    // If already in correct format
-    if (extractedData.hot_leads && extractedData.other_leads) {
-        console.log('✅ Data already in correct format');
-        return extractedData;
-    }
-
-    // Fallback
-    console.log('⚠️ Using data as-is');
-    return {
-        campaignId: 'unknown',
-        hot_leads: { count: 0 },
-        other_leads: { count: 0 }
-    };
+    console.log('❌ NO LEADS FOUND IN DATA');
+    return { campaignId: 'unknown', hot_leads: { count: 0, leads: [] }, other_leads: { count: 0, leads: [] } };
 }
 
 async function triggerCampaign(campaignJson, pipeline) {
     if (!CONFIG.webhookUrl || CONFIG.webhookUrl === 'YOUR_N8N_WEBHOOK_URL_HERE') {
-        showToast('❌ ERROR: Webhook URL not configured! Edit line 20', 'error', 8000);
+        showToast('❌ Webhook URL not configured', 'error', 8000);
         return null;
     }
 
-    console.log('📤 Sending to:', CONFIG.webhookUrl);
-    console.log('📦 Data:', { campaign_json: JSON.parse(campaignJson), pipeline });
+    console.log('📤 SENDING TO:', CONFIG.webhookUrl);
 
     try {
         const response = await fetch(CONFIG.webhookUrl, {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             body: JSON.stringify({
                 campaign_json: JSON.parse(campaignJson),
                 pipeline: pipeline,
@@ -253,40 +183,37 @@ async function triggerCampaign(campaignJson, pipeline) {
 
         console.log('📊 Response status:', response.status);
 
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
         const text = await response.text();
-        console.log('📄 Raw response text:', text);
+        console.log('📄 RAW TEXT:', text);
 
-        if (!text || text.trim() === '') {
-            throw new Error('Empty response. Check "Respond to Webhook" node configuration.');
-        }
+        if (!text || text.trim() === '') throw new Error('Empty response');
 
         const rawData = JSON.parse(text);
-        console.log('📦 Parsed raw data:', rawData);
+        console.log('📦 PARSED DATA:', rawData);
 
-        // Process the response to extract actual data
         const processedData = processLeadsData(rawData);
-        console.log('✅ Final processed data:', processedData);
+        console.log('✅ FINAL PROCESSED:', processedData);
 
         return processedData;
 
     } catch (error) {
-        console.error('❌ Error:', error);
+        console.error('❌ ERROR:', error);
         showToast(`❌ Error: ${error.message}`, 'error', 8000);
         return null;
     }
 }
 
 function displayResults(data) {
-    console.log('📊 Displaying results:', data);
+    console.log('🎨 DISPLAYING RESULTS:', data);
     document.getElementById('resultsSection').classList.remove('hidden');
 
-    const hotLeads = data.hot_leads || { count: 0 };
-    const otherLeads = data.other_leads || { count: 0 };
+    const hotLeads = data.hot_leads || { count: 0, leads: [] };
+    const otherLeads = data.other_leads || { count: 0, leads: [] };
     const totalLeads = (hotLeads.count || 0) + (otherLeads.count || 0);
+
+    console.log('🎨 Hot:', hotLeads.count, 'Other:', otherLeads.count);
 
     document.getElementById('hotLeadsCount').textContent = hotLeads.count || 0;
     document.getElementById('otherLeadsCount').textContent = otherLeads.count || 0;
@@ -295,68 +222,56 @@ function displayResults(data) {
     const conversionRate = totalLeads > 0 ? Math.round((hotLeads.count / totalLeads) * 100) : 0;
     document.getElementById('conversionPotential').textContent = conversionRate + '%';
 
-    // Display hot leads list if available
+    // Display hot leads details
     if (hotLeads.leads && hotLeads.leads.length > 0) {
+        console.log('🎨 Displaying', hotLeads.leads.length, 'hot lead cards');
         const hotLeadsList = document.getElementById('hotLeadsList');
         hotLeadsList.innerHTML = '';
-        hotLeads.leads.forEach(lead => {
+
+        hotLeads.leads.forEach((lead, index) => {
+            console.log(`🎨 Creating card for: ${lead.business_name}`);
             const leadCard = document.createElement('div');
-            leadCard.className = 'bg-white dark:bg-gray-700 p-4 rounded-lg border border-green-200 dark:border-green-700';
+            leadCard.className = 'bg-white dark:bg-gray-700 p-4 rounded-lg border-2 border-green-400 dark:border-green-600 shadow-sm';
             leadCard.innerHTML = `
-                <h4 class="font-bold text-gray-900 dark:text-white">${lead.business_name}</h4>
-                <p class="text-sm text-gray-600 dark:text-gray-300">Employees: ${lead.lead_data?.employees || 'N/A'}</p>
-                <p class="text-sm text-gray-600 dark:text-gray-300">Revenue: $${(lead.lead_data?.revenue || 0).toLocaleString()}</p>
-                <p class="text-sm text-gray-600 dark:text-gray-300">Followers: ${(lead.lead_data?.social_media_followers || 0).toLocaleString()}</p>
+                <div class="flex justify-between items-start mb-2">
+                    <h4 class="font-bold text-lg text-gray-900 dark:text-white">${lead.business_name}</h4>
+                    <span class="bg-green-500 text-white text-xs px-2 py-1 rounded">#${lead.lead_number}</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2 text-sm text-gray-600 dark:text-gray-300">
+                    <div>
+                        <span class="font-semibold">👥 Employees:</span> ${(lead.lead_data?.employees || 0).toLocaleString()}
+                    </div>
+                    <div>
+                        <span class="font-semibold">💰 Revenue:</span> $${(lead.lead_data?.revenue || 0).toLocaleString()}
+                    </div>
+                    <div class="col-span-2">
+                        <span class="font-semibold">📱 Followers:</span> ${(lead.lead_data?.social_media_followers || 0).toLocaleString()}
+                    </div>
+                </div>
             `;
             hotLeadsList.appendChild(leadCard);
         });
         document.getElementById('hotLeadsListSection').classList.remove('hidden');
-    }
-
-    // Set up download buttons
-    if (hotLeads.word_report_url) {
-        document.getElementById('downloadWordBtn').onclick = () => {
-            window.open(hotLeads.word_report_url, '_blank');
-            showToast('📄 Downloading Word report...', 'info');
-        };
-        document.getElementById('downloadWordBtn').disabled = false;
-    }
-
-    if (hotLeads.pdf_report_url) {
-        document.getElementById('downloadPdfBtn').onclick = () => {
-            window.open(hotLeads.pdf_report_url, '_blank');
-            showToast('📑 Downloading PDF report...', 'info');
-        };
-        document.getElementById('downloadPdfBtn').disabled = false;
+    } else {
+        console.log('⚠️ No hot leads to display');
+        document.getElementById('hotLeadsListSection').classList.add('hidden');
     }
 
     if (campaignStartTime) {
         const duration = Math.floor((Date.now() - campaignStartTime) / 1000);
         const minutes = Math.floor(duration / 60);
         const seconds = duration % 60;
-        document.getElementById('campaignDuration').textContent = 
-            `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
+        document.getElementById('campaignDuration').textContent = `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
     }
 }
 
 function resetDashboard() {
     document.getElementById('campaignJson').value = JSON.stringify({
         "campaign_name": "Tech Startups NYC",
-        "target": {
-            "industry": "Technology",
-            "location": "New York, NY",
-            "company_size": "1-50"
-        },
+        "target": { "industry": "Technology", "location": "New York, NY", "company_size": "1-50" },
         "scraping_sources": ["linkedin", "company_website"],
-        "enrichment": {
-            "enabled": true,
-            "ai_scoring": true
-        },
-        "output_preferences": {
-            "hot_lead_threshold": 8,
-            "report_format": ["word", "pdf"],
-            "email_language": "english"
-        }
+        "enrichment": { "enabled": true, "ai_scoring": true },
+        "output_preferences": { "hot_lead_threshold": 8, "report_format": ["word", "pdf"], "email_language": "english" }
     }, null, 2);
 
     document.getElementById('statusSection').classList.add('hidden');
@@ -373,20 +288,15 @@ async function runDemoMode() {
     document.getElementById('campaignId').textContent = currentCampaignId;
 
     const statuses = [
-        { status: 'running', progress: 20, step: 'Scraping LinkedIn...' },
-        { status: 'running', progress: 50, step: 'Enriching leads with AI...' },
-        { status: 'running', progress: 80, step: 'Classifying leads...' },
-        { status: 'completed', progress: 100, step: 'Campaign completed!' }
+        { status: 'running', progress: 25, step: 'Scraping LinkedIn...' },
+        { status: 'running', progress: 60, step: 'AI analysis...' },
+        { status: 'completed', progress: 100, step: 'Complete!' }
     ];
 
-    for (const statusUpdate of statuses) {
-        await new Promise(resolve => setTimeout(() => {
-            updateStatusUI(statusUpdate.status, statusUpdate.progress, statusUpdate.step);
-            resolve();
-        }, 1500));
+    for (const s of statuses) {
+        await new Promise(r => setTimeout(() => { updateStatusUI(s.status, s.progress, s.step); r(); }, 1000));
     }
 
-    // Simulate nested response format
     const mockResponse = {
         leads: [
             { lead_number: 1, business_name: "Global Enterprises", classification: "Hot", lead_data: { employees: 1200, revenue: 20000000, social_media_followers: 75000 }},
@@ -395,9 +305,8 @@ async function runDemoMode() {
         ]
     };
 
-    const processedData = processLeadsData(mockResponse);
-    displayResults(processedData);
-    showToast('✅ Demo campaign completed!', 'success');
+    displayResults(processLeadsData(mockResponse));
+    showToast('✅ Demo complete!', 'success');
     isRunning = false;
 }
 
@@ -409,7 +318,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.documentElement.classList.toggle('dark');
         localStorage.setItem('darkMode', darkModeToggle.checked);
     });
-
     if (localStorage.getItem('darkMode') === 'true') {
         darkModeToggle.checked = true;
         document.documentElement.classList.add('dark');
@@ -418,14 +326,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const demoModeToggle = document.getElementById('demoModeToggle');
     demoModeToggle.addEventListener('change', () => {
         isDemoMode = demoModeToggle.checked;
-        if (isDemoMode) showToast('🎮 Demo mode enabled', 'info');
+        if (isDemoMode) showToast('🎮 Demo mode', 'info');
     });
 
     document.getElementById('campaignJson').addEventListener('input', updateJSONValidation);
 
     const fileInput = document.getElementById('fileInput');
     const dropZone = document.getElementById('dropZone');
-
     dropZone.addEventListener('click', () => fileInput.click());
     dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-blue-400'); });
     dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-blue-400'));
@@ -438,12 +345,11 @@ document.addEventListener('DOMContentLoaded', () => {
             reader.onload = (event) => {
                 document.getElementById('campaignJson').value = event.target.result;
                 updateJSONValidation();
-                showToast('📄 JSON loaded', 'success');
+                showToast('📄 Loaded', 'success');
             };
             reader.readAsText(file);
         }
     });
-
     fileInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (file) {
@@ -451,7 +357,7 @@ document.addEventListener('DOMContentLoaded', () => {
             reader.onload = (event) => {
                 document.getElementById('campaignJson').value = event.target.result;
                 updateJSONValidation();
-                showToast('📄 JSON loaded', 'success');
+                showToast('📄 Loaded', 'success');
             };
             reader.readAsText(file);
         }
@@ -461,13 +367,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const campaignJson = document.getElementById('campaignJson').value;
         const pipeline = document.getElementById('pipelineSelect').value;
 
-        if (!validateJSON(campaignJson)) {
-            showToast('❌ Invalid JSON', 'error');
-            return;
-        }
+        if (!validateJSON(campaignJson)) { showToast('❌ Invalid JSON', 'error'); return; }
 
         document.getElementById('statusSection').classList.remove('hidden');
-        updateStatusUI('pending', 0, 'Initializing...');
+        updateStatusUI('pending', 0, 'Starting...');
         isRunning = true;
         startElapsedTimeCounter();
         document.getElementById('runCampaignBtn').disabled = true;
@@ -476,17 +379,17 @@ document.addEventListener('DOMContentLoaded', () => {
             await runDemoMode();
             document.getElementById('runCampaignBtn').disabled = false;
         } else {
-            updateStatusUI('running', 10, 'Sending to n8n...');
+            updateStatusUI('running', 10, 'Sending...');
             const response = await triggerCampaign(campaignJson, pipeline);
 
             if (response) {
                 currentCampaignId = response.campaignId || 'unknown';
                 document.getElementById('campaignId').textContent = currentCampaignId;
-                updateStatusUI('completed', 100, 'Campaign completed!');
+                updateStatusUI('completed', 100, 'Done!');
                 displayResults(response);
-                showToast('✅ Campaign completed!', 'success');
+                showToast('✅ Complete!', 'success');
             } else {
-                updateStatusUI('error', 0, 'Campaign failed');
+                updateStatusUI('error', 0, 'Failed');
             }
 
             isRunning = false;
@@ -509,7 +412,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 <div class="min-h-screen">
     <header class="bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-50">
-        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div class="max-w-6xl mx-auto px-4 py-6">
             <div class="flex justify-between items-center">
                 <div>
                     <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Lead Generation Dashboard</h1>
@@ -529,14 +432,14 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
     </header>
 
-    <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <main class="max-w-6xl mx-auto px-4 py-8">
         <section class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
             <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Campaign Configuration</h2>
 
             <div class="mb-6">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Upload Campaign JSON</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Upload JSON</label>
                 <div class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center cursor-pointer hover:border-blue-400" id="dropZone">
-                    <p class="text-sm text-gray-600 dark:text-gray-400">Drag and drop or <span class="text-blue-600 font-medium">click to browse</span></p>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">Drag & drop or <span class="text-blue-600 font-medium">click</span></p>
                     <input type="file" id="fileInput" accept=".json" class="hidden">
                 </div>
             </div>
@@ -547,36 +450,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 <p class="text-xs text-red-600 dark:text-red-400 mt-2 hidden" id="jsonError"></p>
             </div>
 
-            <div class="mb-6 p-4 bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg">
-                <p class="text-sm text-blue-900 dark:text-blue-100 mb-2">
-                    <strong>📋 Sample JSON Loaded:</strong> Modify the fields above for your campaign.
-                </p>
-            </div>
-
             <div class="mb-6">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Pipeline</label>
                 <select id="pipelineSelect" class="w-full p-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg">
-                    <option value="linkedin">LinkedIn/Web Scraping</option>
+                    <option value="linkedin">LinkedIn/Web</option>
                     <option value="google_maps">Google Maps</option>
                     <option value="social_media">Social Media</option>
                 </select>
             </div>
 
-            <button id="runCampaignBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
+            <button id="runCampaignBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg disabled:opacity-50">
                 Run Campaign
             </button>
         </section>
 
         <section id="statusSection" class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6 hidden slide-in">
-            <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Campaign Status</h2>
+            <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Status</h2>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div class="grid grid-cols-2 gap-4 mb-6">
                 <div>
                     <p class="text-sm text-gray-600 dark:text-gray-400">Campaign ID</p>
                     <p class="text-lg font-mono font-bold text-gray-900 dark:text-white" id="campaignId">-</p>
                 </div>
                 <div>
-                    <p class="text-sm text-gray-600 dark:text-gray-400">Elapsed Time</p>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">Time</p>
                     <p class="text-lg font-bold text-gray-900 dark:text-white" id="elapsedTime">0s</p>
                 </div>
             </div>
@@ -586,7 +483,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="w-4 h-4 rounded-full" id="statusIndicator"></div>
                     <span class="font-semibold text-gray-900 dark:text-white" id="statusText">Pending</span>
                 </div>
-                <p class="text-sm text-gray-600 dark:text-gray-400 mb-4" id="currentStep">Waiting...</p>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-4" id="currentStep">...</p>
 
                 <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
                     <div id="progressBar" class="bg-blue-600 h-3 w-0 transition-all duration-500"></div>
@@ -594,38 +491,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 <p class="text-sm text-gray-600 dark:text-gray-400 mt-2" id="progressText">0%</p>
             </div>
 
-            <button id="stopCampaignBtn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">
-                Stop
-            </button>
+            <button id="stopCampaignBtn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Stop</button>
         </section>
 
         <section id="resultsSection" class="hidden">
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6 slide-in">
                 <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">🔥 Hot Leads</h2>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div class="grid grid-cols-2 gap-4 mb-6">
                     <div class="bg-green-50 dark:bg-green-900 p-4 rounded-lg">
-                        <p class="text-sm text-gray-600 dark:text-gray-300">Total Hot Leads</p>
+                        <p class="text-sm text-gray-600 dark:text-gray-300">Total</p>
                         <p class="text-3xl font-bold text-green-600 dark:text-green-400" id="hotLeadsCount">0</p>
                     </div>
                     <div class="bg-blue-50 dark:bg-blue-900 p-4 rounded-lg">
-                        <p class="text-sm text-gray-600 dark:text-gray-300">Conversion Rate</p>
+                        <p class="text-sm text-gray-600 dark:text-gray-300">Rate</p>
                         <p class="text-3xl font-bold text-blue-600 dark:text-blue-400" id="conversionPotential">0%</p>
                     </div>
                 </div>
 
                 <div id="hotLeadsListSection" class="mb-6 hidden">
                     <h3 class="font-bold text-gray-900 dark:text-white mb-3">Lead Details:</h3>
-                    <div id="hotLeadsList" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
-                </div>
-
-                <div class="flex flex-col sm:flex-row gap-3">
-                    <button id="downloadWordBtn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                        📄 Download Word
-                    </button>
-                    <button id="downloadPdfBtn" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                        📑 Download PDF
-                    </button>
+                    <div id="hotLeadsList" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
                 </div>
             </div>
 
@@ -636,23 +522,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
                 <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Summary</h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                        <p class="text-sm text-gray-600 dark:text-gray-400">Total</p>
-                        <p class="text-2xl font-bold text-gray-900 dark:text-white" id="totalLeads">0</p>
-                    </div>
-                    <div>
-                        <p class="text-sm text-gray-600 dark:text-gray-400">Hot</p>
-                        <p class="text-2xl font-bold text-green-600">-</p>
-                    </div>
-                    <div>
-                        <p class="text-sm text-gray-600 dark:text-gray-400">Duration</p>
-                        <p class="text-2xl font-bold text-gray-900 dark:text-white" id="campaignDuration">0m 0s</p>
-                    </div>
+                <div class="grid grid-cols-3 gap-4">
+                    <div><p class="text-sm text-gray-600 dark:text-gray-400">Total</p><p class="text-2xl font-bold text-gray-900 dark:text-white" id="totalLeads">0</p></div>
+                    <div><p class="text-sm text-gray-600 dark:text-gray-400">Hot</p><p class="text-2xl font-bold text-green-600" id="hotLeadsCount2">-</p></div>
+                    <div><p class="text-sm text-gray-600 dark:text-gray-400">Duration</p><p class="text-2xl font-bold text-gray-900 dark:text-white" id="campaignDuration">0s</p></div>
                 </div>
-                <button id="newCampaignBtn" class="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">
-                    New Campaign
-                </button>
+                <button id="newCampaignBtn" class="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">New Campaign</button>
             </div>
         </section>
     </main>
