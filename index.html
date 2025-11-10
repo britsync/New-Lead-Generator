@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lead Generation Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes pulse-ring {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        .pulse-ring {
+            animation: pulse-ring 2s infinite;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .slide-in {
+            animation: slideIn 0.3s ease-out;
+        }
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            animation: slideIn 0.3s ease-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
+
+<script>
+// ========================================
+// CONFIGURATION SECTION - EDIT THIS PART
+// ========================================
+const N8N_WEBHOOK_URL = 'YOUR_N8N_WEBHOOK_URL_HERE';
+// Replace above with your webhook URL
+// Example: 'https://your-n8n-instance.com/webhook/lead-campaign'
+// ========================================
+
+const CONFIG = {
+    webhookUrl: N8N_WEBHOOK_URL,
+    pollInterval: 5000,
+    webhookTimeout: 30000,
+};
+</script>
+
+<div class="min-h-screen">
+    <!-- Header -->
+    <header class="bg-white dark:bg-gray-800 shadow-sm transition-colors duration-200 sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Lead Generation Dashboard</h1>
+                    <p class="text-gray-600 dark:text-gray-300 italic mt-1">Upload your campaign data to trigger lead generation and get detailed reports</p>
+                </div>
+                <div class="flex items-center gap-4">
+                    <label class="flex items-center cursor-pointer">
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300 mr-3">Dark Mode</span>
+                        <input type="checkbox" id="darkModeToggle" class="w-5 h-5 rounded">
+                    </label>
+                    <label class="flex items-center cursor-pointer bg-blue-50 dark:bg-blue-900 px-3 py-2 rounded">
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300 mr-2">Demo Mode</span>
+                        <input type="checkbox" id="demoModeToggle" class="w-5 h-5 rounded">
+                    </label>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <!-- Campaign Upload Section -->
+        <section class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6 transition-colors duration-200">
+            <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Campaign Configuration</h2>
+            
+            <!-- File Upload Area -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Upload Campaign JSON</label>
+                <div class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center hover:border-blue-400 dark:hover:border-blue-400 transition-colors cursor-pointer" id="dropZone">
+                    <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                        <path d="M28 8H12a4 4 0 00-4 4v20a4 4 0 004 4h24a4 4 0 004-4V20" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M4 20h40M24 4v20" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">Drag and drop your JSON file here or <span class="text-blue-600 dark:text-blue-400 font-medium">click to browse</span></p>
+                    <input type="file" id="fileInput" accept=".json" class="hidden">
+                </div>
+            </div>
+
+            <!-- JSON Textarea -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Or Paste Campaign JSON</label>
+                <textarea id="campaignJson" class="w-full h-48 p-4 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="{&#10;  &quot;campaign_name&quot;: &quot;Tech Startups NYC&quot;,&#10;  &quot;target&quot;: {&#10;    &quot;industry&quot;: &quot;Technology&quot;,&#10;    &quot;location&quot;: &quot;New York, NY&quot;&#10;  }&#10;}"></textarea>
+                <p class="text-xs text-red-600 dark:text-red-400 mt-2 hidden" id="jsonError"></p>
+            </div>
+
+            <!-- Pipeline Selection -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Select Pipeline</label>
+                <select id="pipelineSelect" class="w-full p-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <option value="linkedin">LinkedIn/Web Scraping</option>
+                    <option value="google_maps">Google Maps Scraping</option>
+                    <option value="social_media">Social Media Scraping</option>
+                </select>
+            </div>
+
+            <!-- Run Campaign Button -->
+            <button id="runCampaignBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                Run Campaign
+            </button>
+        </section>
+
+        <!-- Campaign Status Section -->
+        <section id="statusSection" class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6 hidden transition-colors duration-200 slide-in">
+            <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Campaign Status</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">Campaign ID</p>
+                    <p class="text-lg font-mono font-bold text-gray-900 dark:text-white" id="campaignId">-</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">Elapsed Time</p>
+                    <p class="text-lg font-bold text-gray-900 dark:text-white" id="elapsedTime">0s</p>
+                </div>
+            </div>
+
+            <!-- Status Indicator -->
+            <div class="mb-6">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="w-4 h-4 rounded-full" id="statusIndicator"></div>
+                    <span class="font-semibold text-gray-900 dark:text-white" id="statusText">Pending</span>
+                </div>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-4" id="currentStep">Waiting to start...</p>
+                
+                <!-- Progress Bar -->
+                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+                    <div id="progressBar" class="bg-blue-600 h-3 w-0 transition-all duration-500 rounded-full"></div>
+                </div>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mt-2" id="progressText">0%</p>
+            </div>
+
+            <!-- Stop Button -->
+            <button id="stopCampaignBtn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                Stop Campaign
+            </button>
+        </section>
+
+        <!-- Results Section -->
+        <section id="resultsSection" class="hidden transition-colors duration-200">
+            
+            <!-- Hot Leads Results -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6 slide-in">
+                <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">🔥 Hot Leads</h2>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="bg-green-50 dark:bg-green-900 p-4 rounded-lg">
+                        <p class="text-sm text-gray-600 dark:text-gray-300">Total Hot Leads</p>
+                        <p class="text-3xl font-bold text-green-600 dark:text-green-400" id="hotLeadsCount">0</p>
+                    </div>
+                    <div class="bg-blue-50 dark:bg-blue-900 p-4 rounded-lg">
+                        <p class="text-sm text-gray-600 dark:text-gray-300">Conversion Potential</p>
+                        <p class="text-3xl font-bold text-blue-600 dark:text-blue-400" id="conversionPotential">0%</p>
+                    </div>
+                    <div class="bg-purple-50 dark:bg-purple-900 p-4 rounded-lg">
+                        <p class="text-sm text-gray-600 dark:text-gray-300">Quality Score</p>
+                        <p class="text-3xl font-bold text-purple-600 dark:text-purple-400" id="qualityScore">0</p>
+                    </div>
+                </div>
+
+                <!-- Report Download Buttons -->
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <button id="downloadWordBtn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M5.5 13a3.5 3.5 0 01-.369-6.98 4 4 0 117.753-1 4.5 4.5 0 11-4.814 6.5z"/></svg>
+                        Download Word Report
+                    </button>
+                    <button id="downloadPdfBtn" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M5.5 13a3.5 3.5 0 01-.369-6.98 4 4 0 117.753-1 4.5 4.5 0 11-4.814 6.5z"/></svg>
+                        Download PDF Report
+                    </button>
+                </div>
+            </div>
+
+            <!-- Other Leads & Email Section -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 slide-in">
+                <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">📧 Other Leads - Email Campaign</h2>
+                
+                <div class="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <p class="text-sm text-gray-600 dark:text-gray-300">Total Other Leads</p>
+                    <p class="text-3xl font-bold text-gray-900 dark:text-white" id="otherLeadsCount">0</p>
+                </div>
+
+                <!-- Language Selection -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Select Email Language</label>
+                    <select id="emailLanguageSelect" class="w-full p-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <option value="en">English</option>
+                        <option value="es">Spanish (Español)</option>
+                        <option value="fr">French (Français)</option>
+                        <option value="ar">Arabic (العربية)</option>
+                        <option value="de">German (Deutsch)</option>
+                    </select>
+                </div>
+
+                <!-- Email Preview -->
+                <div class="mb-6 border border-gray-300 dark:border-gray-600 rounded-lg p-4 bg-gray-50 dark:bg-gray-700">
+                    <p class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Email Preview</p>
+                    <div id="emailPreview" class="bg-white dark:bg-gray-800 p-4 rounded text-sm text-gray-800 dark:text-gray-200 font-mono overflow-auto max-h-64">
+                        <p>Select a language to preview email...</p>
+                    </div>
+                </div>
+
+                <!-- Email Action Buttons -->
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <button id="copyEmailBtn" class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                        Copy Email Content
+                    </button>
+                    <button id="sendEmailsBtn" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                        Send Emails to All Leads
+                    </button>
+                </div>
+            </div>
+
+            <!-- Campaign Summary -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mt-6">
+                <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Campaign Summary</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Total Leads Generated</p>
+                        <p class="text-2xl font-bold text-gray-900 dark:text-white" id="totalLeads">0</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Campaign Duration</p>
+                        <p class="text-2xl font-bold text-gray-900 dark:text-white" id="campaignDuration">0m 0s</p>
+                    </div>
+                </div>
+                <button id="newCampaignBtn" class="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                    Start New Campaign
+                </button>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 dark:bg-gray-900 text-gray-300 text-center py-6 mt-12">
+        <p class="text-sm">© 2025 Lead Generation Dashboard. All rights reserved.</p>
+        <p class="text-xs text-gray-500 mt-2">Version 1.0.0 | Powered by n8n</p>
+    </footer>
+</div>
+
+<script>
+let currentCampaignId = null;
+let pollStatusInterval = null;
+let campaignStartTime = null;
+let isDemoMode = false;
+let isRunning = false;
+let demoTimeout = null;
+
+function showToast(message, type = 'info') {
+    const colors = {
+        success: 'bg-green-500',
+        error: 'bg-red-500',
+        info: 'bg-blue-500',
+        warning: 'bg-yellow-500'
+    };
+    const toast = document.createElement('div');
+    toast.className = `toast ${colors[type]} text-white px-6 py-3 rounded-lg shadow-lg`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 5000);
+}
+
+function validateJSON(str) {
+    try { JSON.parse(str); return true; } catch { return false; }
+}
+
+function updateJSONValidation() {
+    const json = document.getElementById('campaignJson').value.trim();
+    const errorElement = document.getElementById('jsonError');
+    const runBtn = document.getElementById('runCampaignBtn');
+    if (json === '') {
+        errorElement.classList.add('hidden');
+        runBtn.disabled = true;
+        return;
+    }
+    if (validateJSON(json)) {
+        errorElement.classList.add('hidden');
+        runBtn.disabled = false;
+    } else {
+        errorElement.textContent = 'Invalid JSON. Please check your input format.';
+        errorElement.classList.remove('hidden');
+        runBtn.disabled = true;
+    }
+}
+
+function getEmailTemplate(language) {
+    const templates = {
+        en: `Subject: Exclusive Growth Opportunity for {{business_name}}\n\nHi {{lead_name}},\n\nI hope this email finds you well. I came across {{business_name}} in {{location}} and was impressed by your work.\n\nBased on my research, I believe we could help you with:\n{{service_suggestions}}\n\nWould you be open to a brief conversation?\n\n{{cta_link}}\n\nBest regards,\nThe Growth Team`,
+        es: `Asunto: Oportunidad Exclusiva de Crecimiento para {{business_name}}\n\nHola {{lead_name}},\n\nEspero que te encuentres bien. Encontré {{business_name}} en {{location}} y quedé impresionado por tu trabajo.\n\nSegún mi investigación, creemos que podemos ayudarte con:\n{{service_suggestions}}\n\n¿Estarías abierto a una breve conversación?\n\n{{cta_link}}\n\nSaludos,\nEl Equipo de Crecimiento`,
+        fr: `Objet: Opportunité Exclusive de Croissance pour {{business_name}}\n\nBonjour {{lead_name}},\n\nJ'espère que vous allez bien. J'ai découvert {{business_name}} à {{location}} et j'ai été impressionné par votre travail.\n\nSelon mes recherches, je crois que nous pourrions vous aider avec :\n{{service_suggestions}}\n\nSeriez-vous ouvert à une brève conversation?\n\n{{cta_link}}\n\nCordialement,\nL'Équipe de Croissance`,
+        ar: `الموضوع: فرصة حصرية للنمو {{business_name}}\n\nمرحبا {{lead_name}},\n\nآمل أن تكون بخير. اكتشفت {{business_name}} في {{location}} وكنت معجبا بعملك.\n\nبناءً على بحثي، أعتقد أنه يمكننا مساعدتك في:\n{{service_suggestions}}\n\nهل ستكون مفتوحا لمحادثة قصيرة?\n\n{{cta_link}}\n\nمع التقدير,\nفريق النمو`,
+        de: `Betreff: Exklusive Wachstumschance für {{business_name}}\n\nHallo {{lead_name}},\n\nIch hoffe, es geht dir gut. Ich bin auf {{business_name}} in {{location}} gestoßen und war von deiner Arbeit beeindruckt.\n\nNach meiner Recherche glaube ich, dass wir dir helfen könnten mit:\n{{service_suggestions}}\n\nWärst du offen für ein kurzes Gespräch?\n\n{{cta_link}}\n\nBeste Grüße,\nDas Wachstumsteam`
+    };
+    return templates[language] || templates.en;
+}
+
+function updateEmailPreview() {
+    const language = document.getElementById('emailLanguageSelect').value;
+    const template = getEmailTemplate(language);
+    const sampleData = {
+        '{{lead_name}}': 'John Doe',
+        '{{business_name}}': 'Tech Innovations Inc.',
+        '{{location}}': 'San Francisco, CA',
+        '{{service_suggestions}}': '• Digital Marketing Strategy\n• Lead Generation\n• Sales Automation',
+        '{{cta_link}}': '[📅 Schedule a Call](https://calendly.com/example)'
+    };
+    let preview = template;
+    Object.entries(sampleData).forEach(([key, value]) => {
+        preview = preview.replace(new RegExp(key, 'g'), value);
+    });
+    document.getElementById('emailPreview').textContent = preview;
+}
+
+function updateStatusUI(status, progress = 0, step = '') {
+    const statusIndicator = document.getElementById('statusIndicator');
+    const statusText = document.getElementById('statusText');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    const currentStep = document.getElementById('currentStep');
+    
+    if (status === 'pending') statusIndicator.className = 'w-4 h-4 rounded-full bg-yellow-500';
+    else if (status === 'running') statusIndicator.className = 'w-4 h-4 rounded-full bg-blue-500 pulse-ring';
+    else if (status === 'completed') statusIndicator.className = 'w-4 h-4 rounded-full bg-green-500';
+    else if (status === 'error') statusIndicator.className = 'w-4 h-4 rounded-full bg-red-500';
+    
+    statusText.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+    progressBar.style.width = progress + '%';
+    progressText.textContent = progress + '%';
+    currentStep.textContent = step || 'Processing...';
+}
+
+function startElapsedTimeCounter() {
+    campaignStartTime = Date.now();
+    setInterval(() => {
+        if (isRunning) {
+            const elapsed = Math.floor((Date.now() - campaignStartTime) / 1000);
+            const minutes = Math.floor(elapsed / 60);
+            const seconds = elapsed % 60;
+            document.getElementById('elapsedTime').textContent = `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
+        }
+    }, 1000);
+}
+
+async function triggerCampaignWebhook(campaignJson, pipeline) {
+    if (!CONFIG.webhookUrl || CONFIG.webhookUrl === 'YOUR_N8N_WEBHOOK_URL_HERE') {
+        showToast('⚠️ Webhook URL not configured. Edit index.html and set N8N_WEBHOOK_URL', 'error');
+        return null;
+    }
+    try {
+        const response = await fetch(CONFIG.webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                campaign_json: JSON.parse(campaignJson),
+                pipeline: pipeline,
+                timestamp: new Date().toISOString()
+            })
+        });
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return await response.json();
+    } catch (error) {
+        console.error('Webhook error:', error);
+        showToast('Error: Unable to connect to n8n. Check your webhook URL.', 'error');
+        return null;
+    }
+}
+
+async function pollCampaignStatus() {
+    if (!currentCampaignId) return;
+    try {
+        const response = await fetch(`${CONFIG.webhookUrl}/status/${currentCampaignId}`);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const data = await response.json();
+        updateStatusUI(data.status, data.progress || 0, data.currentStep || '');
+        if (data.status === 'completed' || data.status === 'error') {
+            clearInterval(pollStatusInterval);
+            isRunning = false;
+            if (data.status === 'completed') {
+                showToast('✅ Campaign completed successfully!', 'success');
+                fetchCampaignResults();
+            } else {
+                showToast('❌ Campaign failed. Please try again.', 'error');
+            }
+        }
+    } catch (error) {
+        console.error('Poll error:', error);
+    }
+}
+
+async function fetchCampaignResults() {
+    if (!currentCampaignId) return;
+    try {
+        const response = await fetch(`${CONFIG.webhookUrl}/results/${currentCampaignId}`);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const data = await response.json();
+        displayResults(data);
+    } catch (error) {
+        console.error('Fetch results error:', error);
+    }
+}
+
+function displayResults(data) {
+    document.getElementById('resultsSection').classList.remove('hidden');
+    const hotLeads = data.hot_leads || { count: 0 };
+    const otherLeads = data.other_leads || { count: 0 };
+    const totalLeads = (hotLeads.count || 0) + (otherLeads.count || 0);
+    document.getElementById('hotLeadsCount').textContent = hotLeads.count || 0;
+    document.getElementById('otherLeadsCount').textContent = otherLeads.count || 0;
+    document.getElementById('totalLeads').textContent = totalLeads;
+    const conversionPotential = totalLeads > 0 ? Math.round((hotLeads.count / totalLeads) * 100) : 0;
+    document.getElementById('conversionPotential').textContent = conversionPotential + '%';
+    document.getElementById('qualityScore').textContent = Math.min(10, Math.ceil(hotLeads.count / 2)) || 0;
+    if (hotLeads.word_report_url) {
+        document.getElementById('downloadWordBtn').onclick = () => {
+            window.open(hotLeads.word_report_url, '_blank');
+            showToast('📄 Downloading Word report...', 'info');
+        };
+    }
+    if (hotLeads.pdf_report_url) {
+        document.getElementById('downloadPdfBtn').onclick = () => {
+            window.open(hotLeads.pdf_report_url, '_blank');
+            showToast('📑 Downloading PDF report...', 'info');
+        };
+    }
+    if (campaignStartTime) {
+        const duration = Math.floor((Date.now() - campaignStartTime) / 1000);
+        const minutes = Math.floor(duration / 60);
+        const seconds = duration % 60;
+        document.getElementById('campaignDuration').textContent = `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
+    }
+}
+
+function resetDashboard() {
+    document.getElementById('campaignJson').value = '';
+    document.getElementById('statusSection').classList.add('hidden');
+    document.getElementById('resultsSection').classList.add('hidden');
+    document.getElementById('runCampaignBtn').disabled = true;
+    currentCampaignId = null;
+    isRunning = false;
+    updateJSONValidation();
+}
+
+async function runDemoMode() {
+    currentCampaignId = 'demo-' + Math.random().toString(36).substr(2, 9);
+    document.getElementById('campaignId').textContent = currentCampaignId;
+    const statuses = [
+        { status: 'running', progress: 10, step: 'Initializing campaign...' },
+        { status: 'running', progress: 25, step: 'Scraping data sources...' },
+        { status: 'running', progress: 50, step: 'Enriching leads with AI...' },
+        { status: 'running', progress: 75, step: 'Scoring and categorizing leads...' },
+        { status: 'running', progress: 90, step: 'Generating reports...' },
+        { status: 'completed', progress: 100, step: 'Campaign completed!' }
+    ];
+    for (const statusUpdate of statuses) {
+        await new Promise(resolve => {
+            demoTimeout = setTimeout(() => {
+                updateStatusUI(statusUpdate.status, statusUpdate.progress, statusUpdate.step);
+                resolve();
+            }, 2000);
+        });
+    }
+    displayResults({ hot_leads: { count: 15, word_report_url: '#', pdf_report_url: '#' }, other_leads: { count: 45 } });
+    showToast('✅ Demo campaign completed!', 'success');
+    isRunning = false;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const darkModeToggle = document.getElementById('darkModeToggle');
+    darkModeToggle.addEventListener('change', () => {
+        document.documentElement.classList.toggle('dark');
+        localStorage.setItem('darkMode', darkModeToggle.checked);
+    });
+    if (localStorage.getItem('darkMode') === 'true') {
+        darkModeToggle.checked = true;
+        document.documentElement.classList.add('dark');
+    }
+    const demoModeToggle = document.getElementById('demoModeToggle');
+    demoModeToggle.addEventListener('change', () => {
+        isDemoMode = demoModeToggle.checked;
+        if (isDemoMode) showToast('🎮 Demo mode enabled.', 'info');
+    });
+    document.getElementById('campaignJson').addEventListener('input', updateJSONValidation);
+    const fileInput = document.getElementById('fileInput');
+    const dropZone = document.getElementById('dropZone');
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('border-blue-400');
+    });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-blue-400'));
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('border-blue-400');
+        const file = e.dataTransfer.files[0];
+        if (file && (file.type === 'application/json' || file.name.endsWith('.json'))) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                document.getElementById('campaignJson').value = event.target.result;
+                updateJSONValidation();
+                showToast('📄 JSON file loaded successfully', 'success');
+            };
+            reader.readAsText(file);
+        } else {
+            showToast('❌ Please upload a valid JSON file', 'error');
+        }
+    });
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                document.getElementById('campaignJson').value = event.target.result;
+                updateJSONValidation();
+                showToast('📄 JSON file loaded successfully', 'success');
+            };
+            reader.readAsText(file);
+        }
+    });
+    document.getElementById('emailLanguageSelect').addEventListener('change', updateEmailPreview);
+    updateEmailPreview();
+    document.getElementById('runCampaignBtn').addEventListener('click', async () => {
+        const campaignJson = document.getElementById('campaignJson').value;
+        const pipeline = document.getElementById('pipelineSelect').value;
+        if (!validateJSON(campaignJson)) {
+            showToast('❌ Invalid JSON format', 'error');
+            return;
+        }
+        document.getElementById('statusSection').classList.remove('hidden');
+        updateStatusUI('pending', 0, 'Initializing campaign...');
+        isRunning = true;
+        startElapsedTimeCounter();
+        if (isDemoMode) {
+            runDemoMode();
+        } else {
+            const response = await triggerCampaignWebhook(campaignJson, pipeline);
+            if (response && response.campaignId) {
+                currentCampaignId = response.campaignId;
+                document.getElementById('campaignId').textContent = currentCampaignId;
+                updateStatusUI('running', 5, 'Campaign started...');
+                pollStatusInterval = setInterval(pollCampaignStatus, CONFIG.pollInterval);
+                showToast('✅ Campaign triggered successfully', 'success');
+            }
+        }
+    });
+    document.getElementById('stopCampaignBtn').addEventListener('click', () => {
+        clearInterval(pollStatusInterval);
+        isRunning = false;
+        clearTimeout(demoTimeout);
+        showToast('⏹️ Campaign stopped', 'warning');
+    });
+    document.getElementById('copyEmailBtn').addEventListener('click', () => {
+        const emailContent = document.getElementById('emailPreview').textContent;
+        navigator.clipboard.writeText(emailContent);
+        showToast('✅ Email content copied to clipboard', 'success');
+    });
+    document.getElementById('sendEmailsBtn').addEventListener('click', async () => {
+        const language = document.getElementById('emailLanguageSelect').value;
+        showToast('📧 Sending emails...', 'info');
+        if (!isDemoMode && CONFIG.webhookUrl && CONFIG.webhookUrl !== 'YOUR_N8N_WEBHOOK_URL_HERE') {
+            try {
+                await fetch(`${CONFIG.webhookUrl}/send-emails`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ campaignId: currentCampaignId, language })
+                });
+                showToast('✅ Emails sent successfully to all leads', 'success');
+            } catch (error) {
+                showToast('❌ Error sending emails', 'error');
+            }
+        } else if (isDemoMode) {
+            showToast('✅ [Demo] Emails sent to 45 leads in ' + language.toUpperCase(), 'success');
+        }
+    });
+    document.getElementById('newCampaignBtn').addEventListener('click', () => {
+        resetDashboard();
+        window.scrollTo(0, 0);
+    });
+});
+</script>
+
+</body>
+</html>
