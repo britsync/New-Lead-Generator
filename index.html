@@ -117,42 +117,66 @@ function startElapsedTimeCounter() {
 // Extract actual data from nested n8n response format
 function extractResponseData(rawData) {
     console.log('🔍 Extracting data from response:', rawData);
+    console.log('📦 Raw data type:', typeof rawData, Array.isArray(rawData) ? '(Array)' : '');
 
     // Handle direct format (what we want)
-    if (rawData.leads || rawData.hot_leads || rawData.campaignId) {
+    if (rawData && rawData.leads) {
+        console.log('✅ Direct format with leads array detected');
+        return rawData;
+    }
+
+    if (rawData && (rawData.hot_leads || rawData.campaignId)) {
         console.log('✅ Direct format detected');
         return rawData;
     }
 
-    // Handle nested array format from n8n
-    if (Array.isArray(rawData)) {
+    // Handle nested array format from n8n "All Incoming Items"
+    if (Array.isArray(rawData) && rawData.length > 0) {
         console.log('📦 Array wrapper detected, unwrapping...');
+        const firstItem = rawData[0];
+        console.log('📦 First item:', firstItem);
 
-        // If array has items, take first
-        if (rawData.length > 0) {
-            const firstItem = rawData[0];
+        // Check for output array (n8n "All Incoming Items" format)
+        if (firstItem.output && Array.isArray(firstItem.output)) {
+            console.log('📦 Output array detected');
 
-            // Check for output array
-            if (firstItem.output && Array.isArray(firstItem.output)) {
-                console.log('📦 Output array detected');
+            if (firstItem.output.length > 0) {
                 const output = firstItem.output[0];
+                console.log('📦 Output content:', output);
 
                 // Check for content array
-                if (output && output.content && Array.isArray(output.content)) {
+                if (output.content && Array.isArray(output.content)) {
                     console.log('📦 Content array detected');
-                    const content = output.content[0];
 
-                    // Get the actual data from text field
-                    if (content && content.text) {
-                        console.log('✅ Found text data');
-                        return content.text;
+                    if (output.content.length > 0) {
+                        const content = output.content[0];
+                        console.log('📦 Content item:', content);
+
+                        // Get the actual data from text field
+                        if (content.text) {
+                            console.log('✅ Found text data:', content.text);
+                            return content.text;
+                        }
                     }
                 }
-            }
 
-            // If direct object in array
+                // Sometimes the data is directly in output
+                if (output.leads) {
+                    console.log('✅ Found leads in output');
+                    return output;
+                }
+            }
+        }
+
+        // If the first item itself has leads
+        if (firstItem.leads) {
+            console.log('✅ Found leads in first item');
             return firstItem;
         }
+
+        // Try the first item directly
+        console.log('⚠️ Using first item as-is');
+        return firstItem;
     }
 
     console.log('⚠️ Using raw data as-is');
