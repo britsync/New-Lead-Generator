@@ -38,11 +38,9 @@ const N8N_WEBHOOK_URL = 'https://primary-production-3af69.up.railway.app/webhook
 
 const CONFIG = {
     webhookUrl: N8N_WEBHOOK_URL,
-    pollInterval: 5000, // 5 seconds
 };
 
 let currentCampaignId = null;
-let pollStatusInterval = null;
 let campaignStartTime = null;
 let isDemoMode = false;
 let isRunning = false;
@@ -125,11 +123,15 @@ async function triggerCampaign(campaignJson, pipeline) {
     }
 
     console.log('📤 Triggering campaign at:', CONFIG.webhookUrl);
+    console.log('📦 Sending data:', { campaign_json: JSON.parse(campaignJson), pipeline });
 
     try {
         const response = await fetch(CONFIG.webhookUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
             body: JSON.stringify({
                 campaign_json: JSON.parse(campaignJson),
                 pipeline: pipeline,
@@ -137,26 +139,44 @@ async function triggerCampaign(campaignJson, pipeline) {
             })
         });
 
+        console.log('📊 Response status:', response.status, response.statusText);
+
         if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
-        const data = await response.json();
-        console.log('✅ Response from n8n:', data);
+        // Check if response has content
+        const contentType = response.headers.get('content-type');
+        console.log('📋 Content-Type:', contentType);
+
+        if (!contentType || !contentType.includes('application/json')) {
+            throw new Error('Response is not JSON. Check your n8n "Respond to Webhook" node settings.');
+        }
+
+        const text = await response.text();
+        console.log('📄 Raw response:', text);
+
+        if (!text || text.trim() === '') {
+            throw new Error('Empty response from webhook. Make sure "Respond to Webhook" node is configured.');
+        }
+
+        const data = JSON.parse(text);
+        console.log('✅ Parsed response:', data);
         return data;
 
     } catch (error) {
-        console.error('❌ Error:', error);
+        console.error('❌ Error details:', error);
         showToast(`❌ Error: ${error.message}`, 'error', 8000);
         return null;
     }
 }
 
 function displayResults(data) {
+    console.log('📊 Displaying results:', data);
     document.getElementById('resultsSection').classList.remove('hidden');
 
-    const hotLeads = data.hot_leads || { count: 0 };
-    const otherLeads = data.other_leads || { count: 0 };
+    const hotLeads = data.hot_leads || data.hotLeads || { count: 0 };
+    const otherLeads = data.other_leads || data.otherLeads || { count: 0 };
     const totalLeads = (hotLeads.count || 0) + (otherLeads.count || 0);
 
     document.getElementById('hotLeadsCount').textContent = hotLeads.count || 0;
@@ -166,20 +186,26 @@ function displayResults(data) {
     const conversionPotential = totalLeads > 0 ? Math.round((hotLeads.count / totalLeads) * 100) : 0;
     document.getElementById('conversionPotential').textContent = conversionPotential + '%';
 
-    if (hotLeads.word_report_url) {
+    // Set up download buttons
+    if (hotLeads.word_report_url || hotLeads.wordReportUrl) {
+        const wordUrl = hotLeads.word_report_url || hotLeads.wordReportUrl;
         document.getElementById('downloadWordBtn').onclick = () => {
-            window.open(hotLeads.word_report_url, '_blank');
+            window.open(wordUrl, '_blank');
             showToast('📄 Downloading Word report...', 'info');
         };
+        document.getElementById('downloadWordBtn').disabled = false;
     }
 
-    if (hotLeads.pdf_report_url) {
+    if (hotLeads.pdf_report_url || hotLeads.pdfReportUrl) {
+        const pdfUrl = hotLeads.pdf_report_url || hotLeads.pdfReportUrl;
         document.getElementById('downloadPdfBtn').onclick = () => {
-            window.open(hotLeads.pdf_report_url, '_blank');
+            window.open(pdfUrl, '_blank');
             showToast('📑 Downloading PDF report...', 'info');
         };
+        document.getElementById('downloadPdfBtn').disabled = false;
     }
 
+    // Calculate duration
     if (campaignStartTime) {
         const duration = Math.floor((Date.now() - campaignStartTime) / 1000);
         const minutes = Math.floor(duration / 60);
@@ -190,10 +216,28 @@ function displayResults(data) {
 }
 
 function resetDashboard() {
-    document.getElementById('campaignJson').value = '';
+    document.getElementById('campaignJson').value = JSON.stringify({
+        "campaign_name": "Tech Startups NYC",
+        "target": {
+            "industry": "Technology",
+            "location": "New York, NY",
+            "company_size": "1-50"
+        },
+        "scraping_sources": ["linkedin", "company_website"],
+        "enrichment": {
+            "enabled": true,
+            "ai_scoring": true
+        },
+        "output_preferences": {
+            "hot_lead_threshold": 8,
+            "report_format": ["word", "pdf"],
+            "email_language": "english"
+        }
+    }, null, 2);
+
     document.getElementById('statusSection').classList.add('hidden');
     document.getElementById('resultsSection').classList.add('hidden');
-    document.getElementById('runCampaignBtn').disabled = true;
+    document.getElementById('runCampaignBtn').disabled = false;
     currentCampaignId = null;
     isRunning = false;
     updateJSONValidation();
@@ -205,9 +249,9 @@ async function runDemoMode() {
 
     const statuses = [
         { status: 'running', progress: 10, step: 'Initializing campaign...' },
-        { status: 'running', progress: 25, step: 'Scraping data sources...' },
+        { status: 'running', progress: 30, step: 'Scraping LinkedIn profiles...' },
         { status: 'running', progress: 50, step: 'Enriching leads with AI...' },
-        { status: 'running', progress: 75, step: 'Scoring leads...' },
+        { status: 'running', progress: 75, step: 'Scoring and categorizing...' },
         { status: 'running', progress: 90, step: 'Generating reports...' },
         { status: 'completed', progress: 100, step: 'Campaign completed!' }
     ];
@@ -217,12 +261,17 @@ async function runDemoMode() {
             setTimeout(() => {
                 updateStatusUI(statusUpdate.status, statusUpdate.progress, statusUpdate.step);
                 resolve();
-            }, 2000);
+            }, 1500);
         });
     }
 
     displayResults({
-        hot_leads: { count: 15, word_report_url: '#', pdf_report_url: '#' },
+        campaignId: currentCampaignId,
+        hot_leads: { 
+            count: 15, 
+            word_report_url: 'https://example.com/report.docx',
+            pdf_report_url: 'https://example.com/report.pdf'
+        },
         other_leads: { count: 45 }
     });
 
@@ -231,6 +280,10 @@ async function runDemoMode() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Set sample JSON on load
+    resetDashboard();
+
+    // Dark mode toggle
     const darkModeToggle = document.getElementById('darkModeToggle');
     darkModeToggle.addEventListener('change', () => {
         document.documentElement.classList.toggle('dark');
@@ -242,14 +295,17 @@ document.addEventListener('DOMContentLoaded', () => {
         document.documentElement.classList.add('dark');
     }
 
+    // Demo mode toggle
     const demoModeToggle = document.getElementById('demoModeToggle');
     demoModeToggle.addEventListener('change', () => {
         isDemoMode = demoModeToggle.checked;
         if (isDemoMode) showToast('🎮 Demo mode enabled', 'info');
     });
 
+    // JSON textarea validation
     document.getElementById('campaignJson').addEventListener('input', updateJSONValidation);
 
+    // File upload
     const fileInput = document.getElementById('fileInput');
     const dropZone = document.getElementById('dropZone');
 
@@ -287,6 +343,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Run campaign button
     document.getElementById('runCampaignBtn').addEventListener('click', async () => {
         const campaignJson = document.getElementById('campaignJson').value;
         const pipeline = document.getElementById('pipelineSelect').value;
@@ -296,39 +353,61 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // Show status section
         document.getElementById('statusSection').classList.remove('hidden');
         updateStatusUI('pending', 0, 'Initializing campaign...');
         isRunning = true;
         startElapsedTimeCounter();
 
-        if (isDemoMode) {
-            runDemoMode();
-        } else {
-            const response = await triggerCampaign(campaignJson, pipeline);
-            if (response) {
-                currentCampaignId = response.campaignId || response.campaign_id;
-                document.getElementById('campaignId').textContent = currentCampaignId;
-                showToast('✅ Campaign triggered!', 'success');
+        // Disable button during processing
+        document.getElementById('runCampaignBtn').disabled = true;
 
-                // If full results are in first response, display them
-                if (response.hot_leads && response.other_leads) {
+        if (isDemoMode) {
+            // Run demo mode
+            await runDemoMode();
+            document.getElementById('runCampaignBtn').disabled = false;
+        } else {
+            // Trigger actual campaign
+            updateStatusUI('running', 10, 'Sending request to n8n...');
+
+            const response = await triggerCampaign(campaignJson, pipeline);
+
+            if (response) {
+                currentCampaignId = response.campaignId || response.campaign_id || 'unknown';
+                document.getElementById('campaignId').textContent = currentCampaignId;
+
+                // Update progress
+                updateStatusUI('running', 50, 'Processing campaign...');
+
+                // Check if we got full results in first response
+                if (response.hot_leads || response.hotLeads) {
                     updateStatusUI('completed', 100, 'Campaign completed!');
                     displayResults(response);
-                    isRunning = false;
+                    showToast('✅ Campaign completed successfully!', 'success');
                 } else {
-                    // Otherwise show that we're waiting for results
-                    updateStatusUI('running', 50, 'Waiting for results...');
+                    updateStatusUI('completed', 100, 'Campaign started!');
+                    showToast('✅ Campaign triggered! Waiting for results...', 'info');
                 }
+
+                isRunning = false;
+                document.getElementById('runCampaignBtn').disabled = false;
+            } else {
+                // Error occurred
+                updateStatusUI('error', 0, 'Campaign failed');
+                isRunning = false;
+                document.getElementById('runCampaignBtn').disabled = false;
             }
         }
     });
 
+    // Stop campaign button
     document.getElementById('stopCampaignBtn').addEventListener('click', () => {
-        clearInterval(pollStatusInterval);
         isRunning = false;
         showToast('⏹️ Campaign stopped', 'warning');
+        document.getElementById('runCampaignBtn').disabled = false;
     });
 
+    // New campaign button
     document.getElementById('newCampaignBtn').addEventListener('click', () => {
         resetDashboard();
         window.scrollTo(0, 0);
@@ -374,47 +453,15 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
 
             <div class="mb-6">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Or Paste JSON</label>
-                <textarea id="campaignJson" class="w-full h-48 p-4 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg font-mono text-sm" placeholder="Paste your campaign JSON here...">{
-  "campaign_name": "Tech Startups NYC",
-  "target": {
-    "industry": "Technology",
-    "location": "New York, NY",
-    "company_size": "1-50"
-  },
-  "scraping_sources": [
-    "linkedin",
-    "company_website"
-  ],
-  "enrichment": {
-    "enabled": true,
-    "ai_scoring": true
-  },
-  "output_preferences": {
-    "hot_lead_threshold": 8,
-    "report_format": [
-      "word",
-      "pdf"
-    ],
-    "email_language": "english"
-  }
-}</textarea>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Campaign JSON</label>
+                <textarea id="campaignJson" class="w-full h-64 p-4 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg font-mono text-sm" placeholder="Paste your campaign JSON here..."></textarea>
                 <p class="text-xs text-red-600 dark:text-red-400 mt-2 hidden" id="jsonError"></p>
             </div>
 
-            <div class="mb-6">
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Select Pipeline</label>
-                <select id="pipelineSelect" class="w-full p-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg">
-                    <option value="linkedin">LinkedIn/Web Scraping</option>
-                    <option value="google_maps">Google Maps Scraping</option>
-                    <option value="social_media">Social Media Scraping</option>
-                </select>
-            
             <!-- Sample JSON Info -->
             <div class="mb-6 p-4 bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg">
                 <p class="text-sm text-blue-900 dark:text-blue-100 mb-2">
-                    <strong>📋 Sample JSON:</strong> The textarea above contains a sample campaign configuration. 
-                    You can copy and modify it or paste your own JSON.
+                    <strong>📋 Sample JSON Loaded:</strong> Modify the fields above to match your campaign needs.
                 </p>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-blue-800 dark:text-blue-200">
                     <div>
@@ -436,7 +483,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             </div>
 
-            <button id="runCampaignBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Select Pipeline</label>
+                <select id="pipelineSelect" class="w-full p-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg">
+                    <option value="linkedin">LinkedIn/Web Scraping</option>
+                    <option value="google_maps">Google Maps Scraping</option>
+                    <option value="social_media">Social Media Scraping</option>
+                </select>
+            </div>
+
+            <button id="runCampaignBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                 Run Campaign
             </button>
         </section>
@@ -491,10 +547,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
 
                 <div class="flex flex-col sm:flex-row gap-3">
-                    <button id="downloadWordBtn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">
+                    <button id="downloadWordBtn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
                         📄 Download Word
                     </button>
-                    <button id="downloadPdfBtn" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">
+                    <button id="downloadPdfBtn" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
                         📑 Download PDF
                     </button>
                 </div>
@@ -530,6 +586,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     <footer class="bg-gray-800 text-gray-300 text-center py-6 mt-12">
         <p class="text-sm">© 2025 Lead Generation Dashboard</p>
+        <p class="text-xs text-gray-500 mt-2">Version 1.0.0 | Powered by n8n</p>
     </footer>
 </div>
 
