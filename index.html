@@ -55,6 +55,15 @@ That's it! The dashboard will automatically use your configured webhook URL.
   </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
+
+  <!-- Dashboard Runtime Configuration -->
+  <script>
+    // Toggle status polling (disabled by default to avoid CORS on cross-origin backends)
+    const ENABLE_STATUS_POLLING = false; // set true only if your backend sends CORS headers
+    const STATUS_POLL_INTERVAL_MS = 3000;
+  </script>
+
+
   
   <!-- Toast Notifications Container -->
   <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
@@ -341,6 +350,11 @@ That's it! The dashboard will automatically use your configured webhook URL.
     </div>
 
     <!-- Campaign Status Section -->
+
+  <div id="cors-warning" class="hidden mx-auto mt-4 max-w-4xl rounded-md border border-yellow-300 bg-yellow-50 p-3 text-sm text-yellow-900">
+    Status polling is disabled or blocked by CORS. Results will render immediately from the initial webhook response. To enable polling, host your backend with proper CORS headers and set ENABLE_STATUS_POLLING = true.
+  </div>
+
     <div id="status-section" class="bg-white rounded-lg shadow-md border border-gray-200 p-6 mb-6 hidden">
       <h2 class="text-2xl font-semibold text-gray-900 mb-4">Campaign Status</h2>
       
@@ -920,44 +934,36 @@ That's it! The dashboard will automatically use your configured webhook URL.
               pipeline: pipeline,
               timestamp: new Date().toISOString()
             }),
-            signal: AbortSignal.timeout(60000) // 60 second timeout
+            signal: AbortSignal.timeout(30000) // 30 second timeout
           });
 
           if (!response.ok) {
-            throw new Error(`Webhook request failed: ${response.status} ${response.statusText}`);
+            throw new Error(`HTTP error! status: ${response.status}`);
           }
 
           const result = await response.json();
-          console.log('✓ Raw webhook response:', JSON.stringify(result, null, 2));
-
-          // Extract and display leads immediately
+          console.log('Raw webhook response:', JSON.stringify(result, null, 2));
+          
+          // Extract leads from nested structure: [0].output[0].content[0].text.leads
           const extractedData = extractResponseData(result);
 
-          if (!extractedData || !Array.isArray(extractedData)) {
-            console.error('❌ Could not extract leads data from response. Response was:', result);
-            // Show results section anyway with empty data
-            document.getElementById('status-section').classList.add('hidden');
-            document.getElementById('results-section').classList.remove('hidden');
-            showToast('Campaign completed but no leads found', 'warning');
+          if (!extractedData) {
+            console.error('Could not extract leads data from response. Response was:', result);
+            throw new Error('Could not extract leads data from response');
+          }
+
+          console.log('✓ Extracted leads data:', extractedData.length, 'items');
+
+          // Immediately render the dashboard with the extracted data
+          if (typeof window.renderDashboardWithData === 'function') {
+            console.log('Rendering dashboard immediately...');
+            window.renderDashboardWithData(extractedData);
           } else {
-            console.log('✓ Extracted', extractedData.length, 'leads');
-
-            // Hide status, show results
-            document.getElementById('status-section').classList.add('hidden');
-            document.getElementById('results-section').classList.remove('hidden');
-
-            // Render the dashboard immediately
-            if (typeof window.renderDashboardWithData === 'function') {
-              console.log('✓ Rendering dashboard with', extractedData.length, 'leads...');
-              window.renderDashboardWithData(extractedData);
-            } else {
-              console.error('❌ renderDashboardWithData function not available');
-            }
-
-            showToast(`Campaign completed! ${extractedData.length} leads found`, 'success');
+            console.warn('renderDashboardWithData function not available');
           }
 
           startCampaignTracking(result.campaignId || generateCampaignId());
+        }
 
         showToast('Campaign started successfully!', 'success');
 
@@ -979,8 +985,11 @@ That's it! The dashboard will automatically use your configured webhook URL.
       updateStatus('running', 0, 'Initializing campaign...');
 
       // Start elapsed time counter
-      state.timerInterval = // Polling disabled - showing results immediately
-      console.log("Campaign tracking started:", campaignId);
+      state.timerInterval = setInterval(updateElapsedTime, 1000);
+
+      // Start polling for status updates
+      if (!state.demoMode) {
+        state.pollingInterval = setInterval(() => pollCampaignStatus(campaignId), 5000);
       }
     }
 
@@ -996,8 +1005,37 @@ That's it! The dashboard will automatically use your configured webhook URL.
     }
 
     async function pollCampaignStatus(campaignId) {
-      // Polling disabled - results shown immediately after webhook response
-      console.log('Polling disabled, showing results immediately');
+      if (!ENABLE_STATUS_POLLING) {
+        console.warn('Status polling disabled by configuration');
+        return null;
+      }
+
+      const statusUrl = `${N8N_WEBHOOK_URL.replace(/\/$/, '')}/status/${campaignId}`;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+
+      try {
+        const res = await fetch(statusUrl, { mode: 'cors', signal: controller.signal });
+        clearTimeout(timeout);
+
+        if (!res.ok) {
+          console.warn('Status endpoint not OK:', res.status, res.statusText);
+          return null;
+        }
+        const data = await res.json().catch(() => null);
+        if (!data) return null;
+
+        const leads = extractResponseData(data);
+        if (Array.isArray(leads) && leads.length) {
+          window.renderDashboardWithData(leads);
+          return leads;
+        }
+        return null;
+      } catch (err) {
+        clearTimeout(timeout);
+        console.warn('Polling error (likely CORS/404):', err);
+        return null;
+      }
     }
     function updateStatus(status, progress, message) {
       const indicator = document.getElementById('status-indicator');
@@ -2023,7 +2061,7 @@ That's it! The dashboard will automatically use your configured webhook URL.
     // Check on page load
     window.addEventListener('DOMContentLoaded', () => {
       console.log('DOM Content Loaded');
-      setTimeout(checkAndRenderData, 100); // Small delay to ensure all scripts loaded
+      setTimeout(checkAndRenderData, 100); setTimeout(checkAndRenderData, 400); setTimeout(checkAndRenderData, 1200); // Small delay to ensure all scripts loaded
     });
 
     // Also check when window loads (for webhooks that arrive late)
