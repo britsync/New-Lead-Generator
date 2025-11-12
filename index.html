@@ -55,15 +55,6 @@ That's it! The dashboard will automatically use your configured webhook URL.
   </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
-
-  <!-- Dashboard Runtime Configuration -->
-  <script>
-    // Toggle status polling (disabled by default to avoid CORS on cross-origin backends)
-    const ENABLE_STATUS_POLLING = false; // set true only if your backend sends CORS headers
-    const STATUS_POLL_INTERVAL_MS = 3000;
-  </script>
-
-
   
   <!-- Toast Notifications Container -->
   <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
@@ -350,11 +341,6 @@ That's it! The dashboard will automatically use your configured webhook URL.
     </div>
 
     <!-- Campaign Status Section -->
-
-  <div id="cors-warning" class="hidden mx-auto mt-4 max-w-4xl rounded-md border border-yellow-300 bg-yellow-50 p-3 text-sm text-yellow-900">
-    Status polling is disabled or blocked by CORS. Results will render immediately from the initial webhook response. To enable polling, host your backend with proper CORS headers and set ENABLE_STATUS_POLLING = true.
-  </div>
-
     <div id="status-section" class="bg-white rounded-lg shadow-md border border-gray-200 p-6 mb-6 hidden">
       <h2 class="text-2xl font-semibold text-gray-900 mb-4">Campaign Status</h2>
       
@@ -924,18 +910,25 @@ That's it! The dashboard will automatically use your configured webhook URL.
           simulateCampaign();
         } else {
           // Real mode - call webhook
-          const response = await fetch(N8N_WEBHOOK_URL, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              campaign: campaignData,
-              pipeline: pipeline,
-              timestamp: new Date().toISOString()
-            }),
-            signal: AbortSignal.timeout(30000) // 30 second timeout
-          });
+          let response;
+try {
+  response = await fetch(N8N_WEBHOOK_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pipeline, payload: campaignData })
+  });
+} catch(fetchErr) {
+  console.error('Fetch error (network/CORS):', fetchErr);
+  showToast('Fetch failed. If hosted on github.io, ensure your webhook sends CORS headers: Access-Control-Allow-Origin:*', 'error');
+  throw fetchErr;
+}
+if (!response.ok) {
+  const txt = await response.text().catch(()=>'');
+  console.error('Webhook HTTP error', response.status, txt);
+  showToast('Webhook error '+response.status+' — check endpoint and CORS headers.', 'error');
+  throw new Error('Webhook HTTP '+response.status);
+}
+
 
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -962,7 +955,16 @@ That's it! The dashboard will automatically use your configured webhook URL.
             console.warn('renderDashboardWithData function not available');
           }
 
-          startCampaignTracking(result.campaignId || generateCampaignId());
+          
+// Render instantly from webhook JSON (no status polling)
+const extractedData = extractResponseData(result);
+if (!extractedData) { throw new Error('Webhook returned no usable leads'); }
+window.renderDashboardWithData(extractedData);
+// Mark status UI
+const statusEl = document.getElementById('status-section'); if (statusEl) statusEl.classList.remove('hidden');
+document.querySelector('#status-section .text-base.font-medium').textContent='Completed';
+document.querySelector('#status-section .text-sm.text-gray-500').textContent='Campaign finished';
+
         }
 
         showToast('Campaign started successfully!', 'success');
@@ -1004,39 +1006,17 @@ That's it! The dashboard will automatically use your configured webhook URL.
         `${minutes}:${seconds.toString().padStart(2, '0')}`;
     }
 
-    async function pollCampaignStatus(campaignId) {
-      if (!ENABLE_STATUS_POLLING) {
-        console.warn('Status polling disabled by configuration');
-        return null;
-      }
-
-      const statusUrl = `${N8N_WEBHOOK_URL.replace(/\/$/, '')}/status/${campaignId}`;
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
-
-      try {
-        const res = await fetch(statusUrl, { mode: 'cors', signal: controller.signal });
-        clearTimeout(timeout);
-
-        if (!res.ok) {
-          console.warn('Status endpoint not OK:', res.status, res.statusText);
-          return null;
-        }
-        const data = await res.json().catch(() => null);
-        if (!data) return null;
-
-        const leads = extractResponseData(data);
-        if (Array.isArray(leads) && leads.length) {
-          window.renderDashboardWithData(leads);
-          return leads;
-        }
-        return null;
-      } catch (err) {
-        clearTimeout(timeout);
-        console.warn('Polling error (likely CORS/404):', err);
-        return null;
+    
+// Polling removed: this build renders immediately from webhook response
+async function pollCampaignStatus() {
+  console.log('Polling disabled. Rendering is done from the immediate webhook response.');
+  return; // no-op
+}
+      } catch (e) {
+        console.error('Polling error:', e);
       }
     }
+
     function updateStatus(status, progress, message) {
       const indicator = document.getElementById('status-indicator');
       const statusText = document.getElementById('status-text');
@@ -2061,7 +2041,7 @@ That's it! The dashboard will automatically use your configured webhook URL.
     // Check on page load
     window.addEventListener('DOMContentLoaded', () => {
       console.log('DOM Content Loaded');
-      setTimeout(checkAndRenderData, 100); setTimeout(checkAndRenderData, 400); setTimeout(checkAndRenderData, 1200); // Small delay to ensure all scripts loaded
+      setTimeout(checkAndRenderData, 100); // Small delay to ensure all scripts loaded
     });
 
     // Also check when window loads (for webhooks that arrive late)
