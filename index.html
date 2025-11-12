@@ -920,36 +920,44 @@ That's it! The dashboard will automatically use your configured webhook URL.
               pipeline: pipeline,
               timestamp: new Date().toISOString()
             }),
-            signal: AbortSignal.timeout(30000) // 30 second timeout
+            signal: AbortSignal.timeout(60000) // 60 second timeout
           });
 
           if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            throw new Error(`Webhook request failed: ${response.status} ${response.statusText}`);
           }
 
           const result = await response.json();
-          console.log('Raw webhook response:', JSON.stringify(result, null, 2));
-          
-          // Extract leads from nested structure: [0].output[0].content[0].text.leads
+          console.log('✓ Raw webhook response:', JSON.stringify(result, null, 2));
+
+          // Extract and display leads immediately
           const extractedData = extractResponseData(result);
 
-          if (!extractedData) {
-            console.error('Could not extract leads data from response. Response was:', result);
-            throw new Error('Could not extract leads data from response');
-          }
-
-          console.log('✓ Extracted leads data:', extractedData.length, 'items');
-
-          // Immediately render the dashboard with the extracted data
-          if (typeof window.renderDashboardWithData === 'function') {
-            console.log('Rendering dashboard immediately...');
-            window.renderDashboardWithData(extractedData);
+          if (!extractedData || !Array.isArray(extractedData)) {
+            console.error('❌ Could not extract leads data from response. Response was:', result);
+            // Show results section anyway with empty data
+            document.getElementById('status-section').classList.add('hidden');
+            document.getElementById('results-section').classList.remove('hidden');
+            showToast('Campaign completed but no leads found', 'warning');
           } else {
-            console.warn('renderDashboardWithData function not available');
+            console.log('✓ Extracted', extractedData.length, 'leads');
+
+            // Hide status, show results
+            document.getElementById('status-section').classList.add('hidden');
+            document.getElementById('results-section').classList.remove('hidden');
+
+            // Render the dashboard immediately
+            if (typeof window.renderDashboardWithData === 'function') {
+              console.log('✓ Rendering dashboard with', extractedData.length, 'leads...');
+              window.renderDashboardWithData(extractedData);
+            } else {
+              console.error('❌ renderDashboardWithData function not available');
+            }
+
+            showToast(`Campaign completed! ${extractedData.length} leads found`, 'success');
           }
 
           startCampaignTracking(result.campaignId || generateCampaignId());
-        }
 
         showToast('Campaign started successfully!', 'success');
 
@@ -971,11 +979,8 @@ That's it! The dashboard will automatically use your configured webhook URL.
       updateStatus('running', 0, 'Initializing campaign...');
 
       // Start elapsed time counter
-      state.timerInterval = setInterval(updateElapsedTime, 1000);
-
-      // Start polling for status updates
-      if (!state.demoMode) {
-        state.pollingInterval = setInterval(() => pollCampaignStatus(campaignId), 5000);
+      state.timerInterval = // Polling disabled - showing results immediately
+      console.log("Campaign tracking started:", campaignId);
       }
     }
 
@@ -991,23 +996,9 @@ That's it! The dashboard will automatically use your configured webhook URL.
     }
 
     async function pollCampaignStatus(campaignId) {
-      try {
-        const response = await fetch(`${N8N_WEBHOOK_URL}/status/${campaignId}`);
-        if (!response.ok) return;
-
-        const status = await response.json();
-        updateStatus(status.status, status.progress, status.currentStep);
-
-        if (status.status === 'completed') {
-          completeCampaign(status.results);
-        } else if (status.status === 'error') {
-          handleCampaignError(status.error);
-        }
-      } catch (e) {
-        console.error('Polling error:', e);
-      }
+      // Polling disabled - results shown immediately after webhook response
+      console.log('Polling disabled, showing results immediately');
     }
-
     function updateStatus(status, progress, message) {
       const indicator = document.getElementById('status-indicator');
       const statusText = document.getElementById('status-text');
