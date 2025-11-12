@@ -932,10 +932,22 @@ That's it! The dashboard will automatically use your configured webhook URL.
           
           // Extract leads from nested structure: [0].output[0].content[0].text.leads
           const extractedData = extractResponseData(result);
-          
+
           if (!extractedData) {
+            console.error('Could not extract leads data from response. Response was:', result);
             throw new Error('Could not extract leads data from response');
           }
+
+          console.log('✓ Extracted leads data:', extractedData.length, 'items');
+
+          // Immediately render the dashboard with the extracted data
+          if (typeof window.renderDashboardWithData === 'function') {
+            console.log('Rendering dashboard immediately...');
+            window.renderDashboardWithData(extractedData);
+          } else {
+            console.warn('renderDashboardWithData function not available');
+          }
+
           startCampaignTracking(result.campaignId || generateCampaignId());
         }
 
@@ -1127,41 +1139,58 @@ That's it! The dashboard will automatically use your configured webhook URL.
     }
 
     function extractResponseData(rawData) {
-      console.log('Extracting response data...');
-      
+      console.log('Extracting response data...', rawData);
+
       try {
-        // Handle nested structure: [0].output[0].content[0].text.leads
+        // Handle multiple webhook response formats
+
+        // Format 1: Direct array of leads
+        if (Array.isArray(rawData) && rawData.length > 0) {
+          console.log('✓ Direct array format:', rawData.length, 'items');
+          return rawData;
+        }
+
+        // Format 2: {summary: {...}, rows: [...]} from your n8n webhook
+        if (rawData && typeof rawData === 'object' && Array.isArray(rawData.rows)) {
+          console.log('✓ Webhook format with rows:', rawData.rows.length, 'items');
+          return rawData.rows;
+        }
+
+        // Format 3: {summary: {...}, columns: [...], rows: [...]}
+        if (rawData && rawData.summary && Array.isArray(rawData.rows)) {
+          console.log('✓ Complete webhook format:', rawData.rows.length, 'items');
+          return rawData.rows;
+        }
+
+        // Format 4: Nested AI response structure
         if (Array.isArray(rawData) && rawData.length > 0) {
           const firstItem = rawData[0];
-          
-          if (firstItem.output && Array.isArray(firstItem.output) && firstItem.output.length > 0) {
+
+          if (firstItem.output && Array.isArray(firstItem.output)) {
             const output = firstItem.output[0];
-            
-            if (output.content && Array.isArray(output.content) && output.content.length > 0) {
+            if (output.content && Array.isArray(output.content)) {
               const content = output.content[0];
-              
               if (content.text && content.text.leads) {
-                console.log('✓ Extracted leads from nested structure:', content.text.leads.length);
+                console.log('✓ Nested AI format:', content.text.leads.length, 'items');
                 return content.text.leads;
               }
             }
           }
         }
-        
-        // Fallback: check if data is already in the correct format
-        if (Array.isArray(rawData)) {
-          console.log('✓ Data is already in array format:', rawData.length);
-          return rawData;
+
+        // Format 5: Object with leads property
+        if (rawData && typeof rawData === 'object' && Array.isArray(rawData.leads)) {
+          console.log('✓ Object with leads property:', rawData.leads.length, 'items');
+          return rawData.leads;
         }
-        
-        console.warn('⚠️ Could not extract leads from response structure');
+
+        console.warn('⚠️ Could not extract leads from response structure:', rawData);
         return null;
       } catch (e) {
-        console.error('Error extracting response data:', e);
+        console.error('❌ Error extracting response data:', e);
         return null;
       }
     }
-
     function processLeadsData(leads) {
       console.log('Processing leads data:', leads);
       
