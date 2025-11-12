@@ -1807,139 +1807,231 @@ That's it! The dashboard will automatically use your configured webhook URL.
     });
   </script>
 
-  <!-- Universal Lead Data Adapter -->
+  
+  <!-- Universal Lead Data Adapter (Robust, Async-Ready) -->
   <script>
-    /** Incoming: array of flat rows (e.g., from your Google Sheet) */
+    // Global data store
+    window.LEAD_DATA = null;
+    window.IS_DATA_LOADED = false;
+
+    /**
+     * Main rendering function - works with any data structure
+     */
     function renderDashboardWithData(rowsRaw) {
-      const rows = Array.isArray(rowsRaw) ? rowsRaw : [];
+      try {
+        const rows = Array.isArray(rowsRaw) ? rowsRaw : [];
 
-      // Normalize keys: strip spaces, lowercase, convert to camel-like names
-      const toKey = k => String(k || '')
-        .trim()
-        .replace(/\s+/g, '_')
-        .replace(/[^\w]/g, '')
-        .toLowerCase();
+        if (!rows.length) {
+          console.warn('No rows to render');
+          return;
+        }
 
-      const mapRow = (r) => {
-        const x = {};
-        for (const [k,v] of Object.entries(r)) x[toKey(k)] = v;
-        // Canonical fields with robust fallbacks
-        return {
-          batch_id: x.batchid ?? x.batch_id ?? null,
-          pipeline: x.pipeline ?? null,
-          lead_number: Number(x.leadnumber ?? x.lead_number ?? x.leadid) || null,
-          lead_id: x.leadid ?? null,
-          type: x.type ?? null,
-          name: x.name ?? null,
-          handle: x.handle ?? null,
-          url: x.url ?? x.website ?? null,
-          classification: x.classification ?? null,
-          reach: Number(x.reach ?? 0) || 0,
-          engagement_total: Number(x.engagementtotal ?? x.engagement_total ?? 0) || 0,
-          relevance_score: Number(x.relevancescore ?? 0) || 0,
-          relevance_keywords: Array.isArray(x.relevancekeywords)
-            ? x.relevancekeywords
-            : String(x.relevancekeywords || '').split(',').map(s=>s.trim()).filter(Boolean),
+        // Normalize keys: strip spaces, lowercase, remove special chars
+        const toKey = k => String(k || '')
+          .trim()
+          .replace(/\s+/g, '_')
+          .replace(/[^\w]/g, '')
+          .toLowerCase();
+
+        const mapRow = (r) => {
+          const x = {};
+          for (const [k,v] of Object.entries(r)) x[toKey(k)] = v;
+          // Canonical fields with robust fallbacks
+          return {
+            batch_id: x.batchid ?? x.batch_id ?? null,
+            pipeline: x.pipeline ?? null,
+            lead_number: Number(x.leadnumber ?? x.lead_number ?? x.leadid) || null,
+            lead_id: x.leadid ?? null,
+            type: x.type ?? null,
+            name: x.name ?? null,
+            handle: x.handle ?? null,
+            url: x.url ?? x.website ?? null,
+            classification: x.classification ?? null,
+            reach: Number(x.reach ?? 0) || 0,
+            engagement_total: Number(x.engagementtotal ?? x.engagement_total ?? 0) || 0,
+            relevance_score: Number(x.relevancescore ?? 0) || 0,
+            relevance_keywords: Array.isArray(x.relevancekeywords)
+              ? x.relevancekeywords
+              : String(x.relevancekeywords || '').split(',').map(s=>s.trim()).filter(Boolean),
+          };
         };
-      };
 
-      const data = rows.map(mapRow);
+        const data = rows.map(mapRow);
 
-      // Metrics
-      const total = data.length;
-      const hot = data.filter(d => d.classification === 'Hot').length;
-      const cold = data.filter(d => d.classification === 'Cold').length;
+        // Metrics
+        const total = data.length;
+        const hot = data.filter(d => d.classification === 'Hot').length;
+        const cold = data.filter(d => d.classification === 'Cold').length;
 
-      // Write counts
-      const setText = (sel, val) => { const el = document.querySelector(sel); if (el) el.textContent = String(val); };
-      setText('#total-leads-count', total);
-      setText('#hot-leads-count', hot);
-      setText('#other-leads-count', cold);
-      setText('#rows-processed', total);
+        // Update counts
+        const setText = (sel, val) => {
+          const el = document.querySelector(sel);
+          if (el) {
+            el.textContent = String(val);
+            el.style.opacity = '1'; // Ensure visible
+          }
+        };
 
-      // Render simple tables
-      const makeTable = (arr) => {
-        if (!arr.length) return document.createElement('div');
+        setText('#total-leads-count', total);
+        setText('#hot-leads-count', hot);
+        setText('#other-leads-count', cold);
+        setText('#rows-processed', total);
 
-        const cols = ['lead_number','type','name','handle','url','classification','reach','engagement_total','relevance_score'];
-        const wrap = document.createElement('div');
-        wrap.className = 'overflow-x-auto';
-        const table = document.createElement('table');
-        table.className = 'min-w-full divide-y divide-gray-200 mt-3';
-        const thead = document.createElement('thead');
-        thead.className = 'bg-gray-50';
-        const trh = document.createElement('tr');
-        cols.forEach(c => {
-          const th = document.createElement('th');
-          th.className = 'px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
-          th.textContent = c.replace(/_/g,' ');
-          trh.appendChild(th);
-        });
-        thead.appendChild(trh);
-        table.appendChild(thead);
-        const tbody = document.createElement('tbody');
-        tbody.className = 'bg-white divide-y divide-gray-200';
-        arr.forEach(r => {
-          const tr = document.createElement('tr');
-          tr.className = 'hover:bg-gray-50';
+        // Render tables with proper styling
+        const makeTable = (arr) => {
+          if (!arr.length) {
+            const empty = document.createElement('div');
+            empty.className = 'p-4 text-center text-gray-500';
+            empty.textContent = 'No leads to display';
+            return empty;
+          }
+
+          const cols = ['lead_number','type','name','handle','url','classification','reach','engagement_total','relevance_score'];
+          const wrap = document.createElement('div');
+          wrap.className = 'overflow-x-auto';
+
+          const table = document.createElement('table');
+          table.className = 'min-w-full divide-y divide-gray-200 mt-3 border border-gray-200';
+
+          // Header
+          const thead = document.createElement('thead');
+          thead.className = 'bg-indigo-50';
+          const trh = document.createElement('tr');
           cols.forEach(c => {
-            const td = document.createElement('td');
-            td.className = 'px-4 py-2 text-sm text-gray-900';
-            let val = r[c];
-            if (c === 'url' && val) {
-              const a = document.createElement('a');
-              a.href = val; a.textContent = 'View'; a.target = '_blank'; a.rel = 'noopener';
-              a.className = 'text-indigo-600 hover:text-indigo-900';
-              td.appendChild(a);
-            } else {
-              td.textContent = val == null ? '-' : String(val);
-            }
-            tr.appendChild(td);
+            const th = document.createElement('th');
+            th.className = 'px-4 py-3 text-left text-xs font-semibold text-indigo-900 uppercase tracking-wider';
+            th.textContent = c.replace(/_/g,' ');
+            trh.appendChild(th);
           });
-          tbody.appendChild(tr);
-        });
-        table.appendChild(tbody);
-        wrap.appendChild(table);
-        return wrap;
-      };
+          thead.appendChild(trh);
+          table.appendChild(thead);
 
-      const hotData = data.filter(d => d.classification === 'Hot');
-      const coldData = data.filter(d => d.classification === 'Cold');
+          // Body
+          const tbody = document.createElement('tbody');
+          tbody.className = 'bg-white divide-y divide-gray-200';
 
-      const mount = (sel, content) => {
-        const el = document.querySelector(sel);
-        if (el) { el.innerHTML = ''; el.appendChild(content); }
-      };
+          arr.forEach((r, idx) => {
+            const tr = document.createElement('tr');
+            tr.className = idx % 2 === 0 ? 'hover:bg-gray-50' : 'bg-gray-50 hover:bg-gray-100';
 
-      mount('#hot-leads-table', makeTable(hotData));
-      mount('#other-leads-table', makeTable(coldData));
+            cols.forEach(c => {
+              const td = document.createElement('td');
+              td.className = 'px-4 py-3 text-sm text-gray-900';
 
-      console.log('Dashboard updated:', { total, hot, cold });
+              let val = r[c];
+
+              if (c === 'url' && val) {
+                const a = document.createElement('a');
+                a.href = val;
+                a.textContent = 'View';
+                a.target = '_blank';
+                a.rel = 'noopener noreferrer';
+                a.className = 'text-indigo-600 hover:text-indigo-900 font-medium';
+                td.appendChild(a);
+              } else if (c === 'classification') {
+                td.textContent = val || '-';
+                td.className += ' font-semibold ' + (val === 'Hot' ? 'text-red-600' : val === 'Cold' ? 'text-blue-600' : 'text-gray-600');
+              } else if (Array.isArray(val)) {
+                td.textContent = val.slice(0,3).join(', ') + (val.length > 3 ? '...' : '');
+              } else {
+                td.textContent = val == null || val === '' ? '-' : String(val);
+              }
+
+              tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+          });
+
+          table.appendChild(tbody);
+          wrap.appendChild(table);
+          return wrap;
+        };
+
+        // Mount tables
+        const hotData = data.filter(d => d.classification === 'Hot');
+        const coldData = data.filter(d => d.classification === 'Cold');
+
+        const mount = (sel, content) => {
+          const el = document.querySelector(sel);
+          if (el) {
+            el.innerHTML = '';
+            el.appendChild(content);
+          } else {
+            console.warn('Container not found:', sel);
+          }
+        };
+
+        mount('#hot-leads-table', makeTable(hotData));
+        mount('#other-leads-table', makeTable(coldData));
+
+        window.IS_DATA_LOADED = true;
+        console.log('✅ Dashboard updated successfully:', { total, hot, cold });
+
+      } catch (err) {
+        console.error('❌ Error rendering dashboard:', err);
+        alert('Error rendering dashboard: ' + err.message);
+      }
     }
 
-    // Auto-wire: listen for webhook data or manual input
-    window.addEventListener('DOMContentLoaded', () => {
-      // If data is passed via query param or global variable
-      if (window.LEAD_DATA) {
+    /**
+     * Auto-detect and render data when available
+     * Handles multiple sources: global var, query param, webhook
+     */
+    function checkAndRenderData() {
+      // Priority 1: Check if data was set globally
+      if (window.LEAD_DATA && !window.IS_DATA_LOADED) {
+        console.log('Rendering from window.LEAD_DATA');
         renderDashboardWithData(window.LEAD_DATA);
+        return;
       }
 
-      // Example: wire a test button to load sample data
-      const testBtn = document.getElementById('test-data-btn');
-      if (testBtn) {
-        testBtn.addEventListener('click', () => {
-          const sampleData = [
-            {"Batch ID":"1","Pipeline":"linkedin_profile_urls","Lead Number":1,"Lead ID":"1762969009571","Type":"linkedin_profile_urls","Source ID":"linkedin_profile_urls","Name":"Marie G","Classification":"Hot","Created At":"2025-11-12T12:36:49.571-05:00","Reach":0,"Engagement Total":0,"Likes":0,"Comments":0,"Shares":0},
-            {"Batch ID":"2","Pipeline":"linkedin_profile_urls","Lead Number":2,"Lead ID":"1762969009575","Type":"linkedin_profile_urls","Source ID":"linkedin_profile_urls","Name":"Yu Bao","Classification":"Cold","Created At":"2025-11-12T12:36:49.574-05:00","Reach":0,"Engagement Total":0,"Likes":0,"Comments":0,"Shares":0}
-          ];
-          renderDashboardWithData(sampleData);
-        });
+      // Priority 2: Check query parameters
+      const params = new URLSearchParams(window.location.search);
+      const dataParam = params.get('data');
+      if (dataParam && !window.IS_DATA_LOADED) {
+        try {
+          const parsedData = JSON.parse(decodeURIComponent(dataParam));
+          console.log('Rendering from query param');
+          renderDashboardWithData(parsedData);
+          return;
+        } catch(e) {
+          console.warn('Invalid query param data:', e);
+        }
+      }
+    }
+
+    // Check on page load
+    window.addEventListener('DOMContentLoaded', () => {
+      console.log('DOM Content Loaded');
+      setTimeout(checkAndRenderData, 100); // Small delay to ensure all scripts loaded
+    });
+
+    // Also check when window loads (for webhooks that arrive late)
+    window.addEventListener('load', () => {
+      console.log('Window fully loaded');
+      if (!window.IS_DATA_LOADED) {
+        setTimeout(checkAndRenderData, 200);
       }
     });
 
-    // Expose globally for external calls (e.g., from n8n webhook response)
+    // Auto-render if data is set after page load
+    const originalDefineProperty = Object.defineProperty;
+    Object.defineProperty(window, 'LEAD_DATA', {
+      get: function() { return this._LEAD_DATA; },
+      set: function(val) {
+        this._LEAD_DATA = val;
+        if (val && !window.IS_DATA_LOADED) {
+          console.log('Data set on window, auto-rendering...');
+          setTimeout(() => renderDashboardWithData(val), 50);
+        }
+      }
+    });
+
+    // Expose globally for manual calls
     window.renderDashboardWithData = renderDashboardWithData;
+    window.checkAndRenderData = checkAndRenderData;
   </script>
+
 
 </body>
 </html>
