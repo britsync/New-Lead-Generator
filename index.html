@@ -1326,6 +1326,7 @@ That's it! The dashboard will automatically use your configured webhook URL.
         <div class="mb-4">
           <h4 class="font-semibold text-gray-700 mb-2">Subject:</h4>
           <p class="text-gray-900">${template.subject.replace('{{business_name}}', sampleData.business_name)}</p>
+        <div id="hot-leads-table" class="mt-4"></div>
         </div>
         <div class="border-t pt-4">
           <h4 class="font-semibold text-gray-700 mb-2">Email Body:</h4>
@@ -1805,5 +1806,140 @@ That's it! The dashboard will automatically use your configured webhook URL.
       }
     });
   </script>
+
+  <!-- Universal Lead Data Adapter -->
+  <script>
+    /** Incoming: array of flat rows (e.g., from your Google Sheet) */
+    function renderDashboardWithData(rowsRaw) {
+      const rows = Array.isArray(rowsRaw) ? rowsRaw : [];
+
+      // Normalize keys: strip spaces, lowercase, convert to camel-like names
+      const toKey = k => String(k || '')
+        .trim()
+        .replace(/\s+/g, '_')
+        .replace(/[^\w]/g, '')
+        .toLowerCase();
+
+      const mapRow = (r) => {
+        const x = {};
+        for (const [k,v] of Object.entries(r)) x[toKey(k)] = v;
+        // Canonical fields with robust fallbacks
+        return {
+          batch_id: x.batchid ?? x.batch_id ?? null,
+          pipeline: x.pipeline ?? null,
+          lead_number: Number(x.leadnumber ?? x.lead_number ?? x.leadid) || null,
+          lead_id: x.leadid ?? null,
+          type: x.type ?? null,
+          name: x.name ?? null,
+          handle: x.handle ?? null,
+          url: x.url ?? x.website ?? null,
+          classification: x.classification ?? null,
+          reach: Number(x.reach ?? 0) || 0,
+          engagement_total: Number(x.engagementtotal ?? x.engagement_total ?? 0) || 0,
+          relevance_score: Number(x.relevancescore ?? 0) || 0,
+          relevance_keywords: Array.isArray(x.relevancekeywords)
+            ? x.relevancekeywords
+            : String(x.relevancekeywords || '').split(',').map(s=>s.trim()).filter(Boolean),
+        };
+      };
+
+      const data = rows.map(mapRow);
+
+      // Metrics
+      const total = data.length;
+      const hot = data.filter(d => d.classification === 'Hot').length;
+      const cold = data.filter(d => d.classification === 'Cold').length;
+
+      // Write counts
+      const setText = (sel, val) => { const el = document.querySelector(sel); if (el) el.textContent = String(val); };
+      setText('#total-leads-count', total);
+      setText('#hot-leads-count', hot);
+      setText('#other-leads-count', cold);
+      setText('#rows-processed', total);
+
+      // Render simple tables
+      const makeTable = (arr) => {
+        if (!arr.length) return document.createElement('div');
+
+        const cols = ['lead_number','type','name','handle','url','classification','reach','engagement_total','relevance_score'];
+        const wrap = document.createElement('div');
+        wrap.className = 'overflow-x-auto';
+        const table = document.createElement('table');
+        table.className = 'min-w-full divide-y divide-gray-200 mt-3';
+        const thead = document.createElement('thead');
+        thead.className = 'bg-gray-50';
+        const trh = document.createElement('tr');
+        cols.forEach(c => {
+          const th = document.createElement('th');
+          th.className = 'px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
+          th.textContent = c.replace(/_/g,' ');
+          trh.appendChild(th);
+        });
+        thead.appendChild(trh);
+        table.appendChild(thead);
+        const tbody = document.createElement('tbody');
+        tbody.className = 'bg-white divide-y divide-gray-200';
+        arr.forEach(r => {
+          const tr = document.createElement('tr');
+          tr.className = 'hover:bg-gray-50';
+          cols.forEach(c => {
+            const td = document.createElement('td');
+            td.className = 'px-4 py-2 text-sm text-gray-900';
+            let val = r[c];
+            if (c === 'url' && val) {
+              const a = document.createElement('a');
+              a.href = val; a.textContent = 'View'; a.target = '_blank'; a.rel = 'noopener';
+              a.className = 'text-indigo-600 hover:text-indigo-900';
+              td.appendChild(a);
+            } else {
+              td.textContent = val == null ? '-' : String(val);
+            }
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        wrap.appendChild(table);
+        return wrap;
+      };
+
+      const hotData = data.filter(d => d.classification === 'Hot');
+      const coldData = data.filter(d => d.classification === 'Cold');
+
+      const mount = (sel, content) => {
+        const el = document.querySelector(sel);
+        if (el) { el.innerHTML = ''; el.appendChild(content); }
+      };
+
+      mount('#hot-leads-table', makeTable(hotData));
+      mount('#other-leads-table', makeTable(coldData));
+
+      console.log('Dashboard updated:', { total, hot, cold });
+    }
+
+    // Auto-wire: listen for webhook data or manual input
+    window.addEventListener('DOMContentLoaded', () => {
+      // If data is passed via query param or global variable
+      if (window.LEAD_DATA) {
+        renderDashboardWithData(window.LEAD_DATA);
+      }
+
+      // Example: wire a test button to load sample data
+      const testBtn = document.getElementById('test-data-btn');
+      if (testBtn) {
+        testBtn.addEventListener('click', () => {
+          const sampleData = [
+            {"Batch ID":"1","Pipeline":"linkedin_profile_urls","Lead Number":1,"Lead ID":"1762969009571","Type":"linkedin_profile_urls","Source ID":"linkedin_profile_urls","Name":"Marie G","Classification":"Hot","Created At":"2025-11-12T12:36:49.571-05:00","Reach":0,"Engagement Total":0,"Likes":0,"Comments":0,"Shares":0},
+            {"Batch ID":"2","Pipeline":"linkedin_profile_urls","Lead Number":2,"Lead ID":"1762969009575","Type":"linkedin_profile_urls","Source ID":"linkedin_profile_urls","Name":"Yu Bao","Classification":"Cold","Created At":"2025-11-12T12:36:49.574-05:00","Reach":0,"Engagement Total":0,"Likes":0,"Comments":0,"Shares":0}
+          ];
+          renderDashboardWithData(sampleData);
+        });
+      }
+    });
+
+    // Expose globally for external calls (e.g., from n8n webhook response)
+    window.renderDashboardWithData = renderDashboardWithData;
+  </script>
+
 </body>
 </html>
