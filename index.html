@@ -901,9 +901,9 @@ That's it! The dashboard will automatically use your configured webhook URL.
         // Save to history
         state.lastCampaignData = { ...campaignData, pipeline };
 
-        // Prepare UI (no polling)
-        document.getElementById('status-section').classList.add('hidden');
-        document.getElementById('results-section').classList.remove('hidden');
+        // Show status section
+        document.getElementById('status-section').classList.remove('hidden');
+        document.getElementById('results-section').classList.add('hidden');
 
         if (state.demoMode) {
           // Demo mode - simulate campaign
@@ -948,7 +948,7 @@ That's it! The dashboard will automatically use your configured webhook URL.
             console.warn('renderDashboardWithData function not available');
           }
 
-          startCampaignTracking(result.campaignId || generateCampaignId());
+          startCampaignTracking(generateCampaignId()); // Webhook response already rendered
         }
 
         showToast('Campaign started successfully!', 'success');
@@ -963,9 +963,20 @@ That's it! The dashboard will automatically use your configured webhook URL.
       return 'camp_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
     }
 
-    function startCampaignTracking() {
-  console.log("Campaign tracking disabled: using immediate webhook response only.");
-}
+    function startCampaignTracking(campaignId) {
+      state.currentCampaignId = campaignId;
+      state.campaignStartTime = Date.now();
+      
+      document.getElementById('campaign-id').textContent = campaignId;
+      updateStatus('running', 0, 'Initializing campaign...');
+
+      // Start elapsed time counter
+      state.timerInterval = setInterval(updateElapsedTime, 1000);
+
+      // Start polling for status updates
+      if (!state.demoMode) {
+        state.pollingInterval = setInterval(() => pollCampaignStatus(campaignId), 5000);
+      }
     }
 
     function updateElapsedTime() {
@@ -979,10 +990,17 @@ That's it! The dashboard will automatically use your configured webhook URL.
         `${minutes}:${seconds.toString().padStart(2, '0')}`;
     }
 
-    async function pollCampaignStatus() {
-  console.log("Polling disabled by build.");
-  return;
-} else if (status.status === 'error') {
+    async function pollCampaignStatus(campaignId) {
+      try {
+        const response = await fetch(`${N8N_WEBHOOK_URL}/status/${campaignId}`);
+        if (!response.ok) return;
+
+        const status = await response.json();
+        updateStatus(status.status, status.progress, status.currentStep);
+
+        if (status.status === 'completed') {
+          completeCampaign(status.results);
+        } else if (status.status === 'error') {
           handleCampaignError(status.error);
         }
       } catch (e) {
@@ -1024,12 +1042,7 @@ That's it! The dashboard will automatically use your configured webhook URL.
 
     function simulateCampaign() {
       const campaignId = generateCampaignId();
-      // startCampaignTracking removed (no status polling)
-          // Show results section now
-          try {
-            document.getElementById('status-section')?.classList.add('hidden');
-            document.getElementById('results-section')?.classList.remove('hidden');
-          } catch(_) {}
+      startCampaignTracking(campaignId);
 
       const steps = [
         { progress: 10, message: STATUS_MESSAGES.initializing, delay: 1000 },
@@ -1411,7 +1424,7 @@ That's it! The dashboard will automatically use your configured webhook URL.
       state.resultsData = null;
 
       // Hide sections
-      document.getElementById('status-section').classList.add('hidden');
+      // Status section hidden - no polling needed
       document.getElementById('results-section').classList.add('hidden');
 
       // Clear form
