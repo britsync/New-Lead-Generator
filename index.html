@@ -250,9 +250,9 @@ That's it! The dashboard will automatically use your configured webhook URL.
       
       <!-- Conversion Button -->
       <div class="flex justify-center">
-        <button id="convert-file-btn" onclick="convertFile()" class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors disabled:opacity-50">
+        <!-- REMOVED: <button id="convert-file-btn" onclick="convertFile()" class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors disabled:opacity-50">
           Convert with AI
-        </button>
+        </button> -->
       </div>
     </div>
 
@@ -564,7 +564,7 @@ That's it! The dashboard will automatically use your configured webhook URL.
       currentCampaignId: null,
       campaignStartTime: null,
       timerInterval: null,
-      pollingInterval: null,
+      progressInterval: null, // New interval for fake progress
       resultsData: null,
       lastCampaignData: null,
       campaignHistory: [],
@@ -623,7 +623,7 @@ That's it! The dashboard will automatically use your configured webhook URL.
         
         // Clear any previous campaign status/results
         if (state.timerInterval) clearInterval(state.timerInterval);
-        if (state.pollingInterval) clearInterval(state.pollingInterval);
+        if (state.progressInterval) clearInterval(state.progressInterval);
         document.getElementById('elapsed-time').textContent = '0:00';
         document.getElementById('progress-percentage').textContent = '0';
         document.getElementById('progress-bar').style.width = '0%';
@@ -637,11 +637,15 @@ That's it! The dashboard will automatically use your configured webhook URL.
         document.getElementById('status-section').classList.remove('hidden');
         document.getElementById('results-section').classList.add('hidden');
 
+        // Start tracking and simulated progress
+        startCampaignTracking(generateCampaignId());
+
         if (state.demoMode) {
           // Demo mode - simulate campaign
           simulateCampaign();
         } else {
           // Real mode - call webhook
+          // NOTE: Fixed timeout (AbortSignal.timeout) is removed as requested.
           const response = await fetch(N8N_WEBHOOK_URL, {
             method: 'POST',
             headers: {
@@ -651,8 +655,7 @@ That's it! The dashboard will automatically use your configured webhook URL.
               campaign: campaignData,
               pipeline: pipeline,
               timestamp: new Date().toISOString()
-            }),
-            signal: AbortSignal.timeout(30000) // 30 second timeout
+            })
           });
 
           if (!response.ok) {
@@ -680,7 +683,7 @@ That's it! The dashboard will automatically use your configured webhook URL.
         showToast('Campaign started successfully!', 'success');
 
       } catch (e) {
-        showToast(`Error starting campaign: ${e.message}`, 'error');
+        handleCampaignError(e.message);
         console.error('Campaign error:', e);
       }
     }
@@ -694,13 +697,13 @@ That's it! The dashboard will automatically use your configured webhook URL.
       state.campaignStartTime = Date.now();
       
       document.getElementById('campaign-id').textContent = campaignId;
-      updateStatus('running', 0, 'Initializing campaign...');
+      updateStatus('running', 0, STATUS_MESSAGES.initializing);
 
       // Start elapsed time counter
       state.timerInterval = setInterval(updateElapsedTime, 1000);
 
-      // NOTE: Polling is removed as per user request. The webhook is expected to return the final result.
-      // The status section will remain "Running" until the webhook returns and calls completeCampaign().
+      // Start simulated progress
+      state.progressInterval = setInterval(updateSimulatedProgress, 1000);
     }
 
     function updateElapsedTime() {
@@ -714,7 +717,37 @@ That's it! The dashboard will automatically use your configured webhook URL.
         `${minutes}:${seconds.toString().padStart(2, '0')}`;
     }
 
-    // REMOVED: async function pollCampaignStatus(campaignId) { ... }
+    // New function for simulated progress
+    function updateSimulatedProgress() {
+      const steps = [
+        { progress: 10, message: STATUS_MESSAGES.initializing },
+        { progress: 25, message: STATUS_MESSAGES.scraping_linkedin },
+        { progress: 45, message: STATUS_MESSAGES.enriching },
+        { progress: 65, message: STATUS_MESSAGES.scoring },
+        { progress: 80, message: STATUS_MESSAGES.generating_reports },
+        { progress: 95, message: STATUS_MESSAGES.preparing_emails }
+      ];
+
+      const elapsedSeconds = Math.floor((Date.now() - state.campaignStartTime) / 1000);
+      
+      // Cycle through the steps based on elapsed time (e.g., change step every 10 seconds)
+      const stepDuration = 10; // seconds per step
+      const stepIndex = Math.min(Math.floor(elapsedSeconds / stepDuration), steps.length - 1);
+      const currentStep = steps[stepIndex];
+      
+      // Calculate a fluctuating progress within the current step's range
+      const minProgress = stepIndex > 0 ? steps[stepIndex - 1].progress : 0;
+      const maxProgress = currentStep.progress;
+      const timeInStep = elapsedSeconds % stepDuration;
+      
+      // Linear interpolation for progress, but cap at 95%
+      let progress = Math.min(95, minProgress + (maxProgress - minProgress) * (timeInStep / stepDuration));
+      
+      // Add a small random fluctuation to make it look less robotic
+      progress = Math.min(95, progress + Math.random() * 2);
+
+      updateStatus('running', Math.floor(progress), currentStep.message);
+    }
 
     function updateStatus(status, progress, message) {
       const indicator = document.getElementById('status-indicator');
@@ -749,21 +782,20 @@ That's it! The dashboard will automatically use your configured webhook URL.
     }
 
     function simulateCampaign() {
-      const campaignId = generateCampaignId();
-      startCampaignTracking(campaignId);
-
+      // Start tracking and simulated progress is already called in runCampaign()
+      
       // Simulate a delay before the mock response is received
       setTimeout(() => {
         const extractedData = extractResponseData(MOCK_LEADS_RESPONSE);
         const processedResults = processLeadsData(extractedData);
         completeCampaign(processedResults);
-      }, 3000); // 3 second delay to simulate webhook processing time
+      }, 15000); // 15 second delay to allow simulated progress to run
     }
 
     function completeCampaign(results) {
-      // Stop timers and polling
+      // Stop timers and progress simulation
       if (state.timerInterval) clearInterval(state.timerInterval);
-      // if (state.pollingInterval) clearInterval(state.pollingInterval); // Polling is already removed
+      if (state.progressInterval) clearInterval(state.progressInterval);
 
       updateStatus('completed', 100, STATUS_MESSAGES.completed);
       
@@ -823,7 +855,7 @@ That's it! The dashboard will automatically use your configured webhook URL.
 
     function handleCampaignError(error) {
       if (state.timerInterval) clearInterval(state.timerInterval);
-      // if (state.pollingInterval) clearInterval(state.pollingInterval); // Polling is already removed
+      if (state.progressInterval) clearInterval(state.progressInterval);
 
       updateStatus('error', 0, `Error: ${error}`);
       showToast(`Campaign failed: ${error}`, 'error');
@@ -1161,7 +1193,7 @@ That's it! The dashboard will automatically use your configured webhook URL.
       state.currentCampaignId = null;
       state.campaignStartTime = null;
       if (state.timerInterval) clearInterval(state.timerInterval);
-      // if (state.pollingInterval) clearInterval(state.pollingInterval); // Polling is already removed
+      if (state.progressInterval) clearInterval(state.progressInterval);
 
       // Hide sections
       document.getElementById('status-section').classList.add('hidden');
@@ -1169,6 +1201,7 @@ That's it! The dashboard will automatically use your configured webhook URL.
 
       // Clear form
       document.getElementById('campaign-json').value = '';
+      document.getElementById('campaign-file-upload').value = '';
       validateJSON();
 
       // Scroll to top
@@ -1383,6 +1416,8 @@ That's it! The dashboard will automatically use your configured webhook URL.
       return div.innerHTML;
     }
 
+    // NOTE: The 'Convert with AI' button is removed from HTML, so this function is no longer called.
+    // Keeping it for completeness if the user re-adds the button later.
     async function convertFile() {
       if (!state.uploadedFile) {
         showToast('No file uploaded', 'error');
@@ -1394,7 +1429,7 @@ That's it! The dashboard will automatically use your configured webhook URL.
       // Show conversion status
       document.getElementById('conversion-status').classList.remove('hidden');
       document.getElementById('conversion-results').classList.add('hidden');
-      document.getElementById('convert-file-btn').disabled = true;
+      // document.getElementById('convert-file-btn').disabled = true; // Button is removed
 
       if (state.demoMode) {
         // Demo mode - simulate conversion
@@ -1439,7 +1474,7 @@ That's it! The dashboard will automatically use your configured webhook URL.
       // Show results
       document.getElementById('conversion-results').classList.remove('hidden');
       document.getElementById('use-conversion-btn').disabled = false;
-      document.getElementById('convert-file-btn').disabled = false;
+      // document.getElementById('convert-file-btn').disabled = false; // Button is removed
     }
 
     async function callConversionWebhook(fileType) {
@@ -1491,13 +1526,13 @@ That's it! The dashboard will automatically use your configured webhook URL.
         // Show results
         document.getElementById('conversion-results').classList.remove('hidden');
         document.getElementById('use-conversion-btn').disabled = false;
-        document.getElementById('convert-file-btn').disabled = false;
+        // document.getElementById('convert-file-btn').disabled = false; // Button is removed
         showToast('File converted successfully!', 'success');
 
       } catch (e) {
         document.getElementById('conversion-status-text').textContent = '❌ Conversion failed!';
         document.getElementById('conversion-progress-bar').style.width = '0%';
-        document.getElementById('convert-file-btn').disabled = false;
+        // document.getElementById('convert-file-btn').disabled = false; // Button is removed
         showToast(`Error converting file: ${e.message}`, 'error');
         console.error('Conversion error:', e);
       }
