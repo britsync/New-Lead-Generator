@@ -302,36 +302,9 @@ That's it! The dashboard will automatically use your configured webhook URL.
             </select>
           </div>
           
-          <div class="mb-6">
-            <label class="block text-sm font-medium text-gray-700 mb-2">AI Enrichment</label>
-            <div class="space-y-2">
-              <div class="flex items-center">
-                <input type="checkbox" id="enrichment-enabled" checked class="rounded text-blue-600">
-                <label for="enrichment-enabled" class="ml-2 text-sm text-gray-700">Enable Enrichment</label>
-              </div>
-              <div class="flex items-center">
-                <input type="checkbox" id="ai-scoring" checked class="rounded text-blue-600">
-                <label for="ai-scoring" class="ml-2 text-sm text-gray-700">AI Scoring</label>
-              </div>
-            </div>
-          </div>
           
-          <div class="mb-6">
-            <label class="block text-sm font-medium text-gray-700 mb-2">Output Preferences</label>
-            <div class="space-y-2">
-              <div class="flex items-center">
-                <label for="not-lead-threshold" class="text-sm text-gray-700 mr-2">Not-Lead Threshold:</label>
-                <input type="number" id="not-lead-threshold" value="0" min="0" max="100" class="w-16 p-1 border border-gray-300 rounded-lg text-sm">
-              </div>
-              <div class="flex items-center">
-                <label for="report-format" class="text-sm text-gray-700 mr-2">Report Format:</label>
-                <select id="report-format" class="p-1 border border-gray-300 rounded-lg text-sm">
-                  <option value="word">Word</option>
-                  <option value="pdf">PDF</option>
-                </select>
-              </div>
-            </div>
-          </div>
+          
+          
           
           <div class="mb-6">
             <label for="email-language" class="block text-sm font-medium text-gray-700 mb-2">Email Language</label>
@@ -428,19 +401,22 @@ That's it! The dashboard will automatically use your configured webhook URL.
       
       <!-- Hot Leads Section -->
       <div class="mb-8">
-        <h3 class="text-xl font-semibold text-gray-900 mb-3">🔥 Hot Leads (<span id="hot-leads-summary">0</span>)</h3>
+        <div class="flex justify-between items-center">
+            <h3 class="text-xl font-semibold text-gray-900">🔥 Hot Leads (<span id="hot-leads-summary">0</span>)</h3>
+            <button 
+              id="send-all-emails-btn-hot-leads-table"
+              onclick="sendBulkEmails('hot-leads-table')" 
+              class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+            >
+              Send all emails
+            </button>
+          </div>
         <p class="text-sm text-gray-600 mb-4">These leads match your ideal customer profile and are ready for immediate outreach.</p>
         
         <div id="hot-leads-table" class="mt-4"></div>
         
         <div class="mt-4 flex space-x-3">
-          <button onclick="downloadReport('word')" class="bg-yellow-500 hover:bg-yellow-600 text-white font-medium py-2 px-4 rounded-lg transition-colors">
-            Download Word Report
-          </button>
-          <button onclick="downloadReport('pdf')" class="bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-4 rounded-lg transition-colors">
-            Download PDF Report
-          </button>
-          <button onclick="downloadExcel()" class="bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+          <button onclick="downloadExcel()" class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
             Export to Excel
           </button>
         </div>
@@ -448,7 +424,16 @@ That's it! The dashboard will automatically use your configured webhook URL.
       
       <!-- Other Leads Section -->
       <div class="mb-8">
-        <h3 class="text-xl font-semibold text-gray-900 mb-3">🧊 Other Leads (<span id="other-leads-summary">0</span>)</h3>
+        <div class="flex justify-between items-center">
+            <h3 class="text-xl font-semibold text-gray-900">🧊 Other Leads (<span id="other-leads-summary">0</span>)</h3>
+            <button 
+              id="send-all-emails-btn-other-leads-table"
+              onclick="sendBulkEmails('other-leads-table')" 
+              class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+            >
+              Send all emails
+            </button>
+          </div>
         <p class="text-sm text-gray-600 mb-4">These leads require a nurturing sequence. Use the AI-generated email template below.</p>
         
         <div id="other-leads-table" class="mt-4"></div>
@@ -457,9 +442,7 @@ That's it! The dashboard will automatically use your configured webhook URL.
           <button onclick="previewEmail()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
             Preview Email Template
           </button>
-          <button onclick="sendEmails()" class="bg-pink-600 hover:bg-pink-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
-            Send Emails
-          </button>
+          
         </div>
       </div>
       
@@ -485,12 +468,13 @@ That's it! The dashboard will automatically use your configured webhook URL.
     // CONFIGURATION SECTION
     // ========================================
     // !!! IMPORTANT !!! Replace with your actual n8n webhook URL
-    const N8N_WEBHOOK_URL = 'https://primary-production-3af69.up.railway.app/webhook-test/NewLeadGen'; 
+    const N8N_WEBHOOK_URL = 'https://primary-production-3af69.up.railway.app/webhook-test/NewLeadGen';
+    const EMAIL_WEBHOOK_URL = 'YOUR_EMAIL_WEBHOOK_URL_HERE'; // New constant for email sending 
     // ========================================
     
     const STATUS_MESSAGES = {
       initializing: 'Initializing campaign...',
-      scraping_linkedin: 'Scraping LinkedIn profiles...',
+      scraping_linkedin: 'Scraping profiles...',
       enriching: 'Enriching lead data with AI...',
       scoring: 'AI scoring and classification...',
       generating_reports: 'Generating reports...',
@@ -572,7 +556,8 @@ That's it! The dashboard will automatically use your configured webhook URL.
       uploadedFile: null,
       fileData: null,
       hotLeads: [],
-      coldLeads: []
+      coldLeads: [],
+      allLeads: []
     };
 
     // ========================================
@@ -846,8 +831,10 @@ That's it! The dashboard will automatically use your configured webhook URL.
       document.getElementById('results-campaign-id').textContent = state.currentCampaignId;
 
       // Render tables
-      renderLeadsTable('hot-leads-table', results.hot_leads.leads);
-      renderLeadsTable('other-leads-table', results.other_leads.leads);
+      renderLeadsTable('hot-leads-table', results.hot_leads.leads, results.hot_leads.count);
+      renderLeadsTable('other-leads-table', results.other_leads.leads, results.other_leads.count);
+      // Initialize bulk button state after rendering tables
+      updateBulkButtonState();
 
       // Scroll to results
       document.getElementById('results-section').scrollIntoView({ behavior: 'smooth' });
@@ -916,46 +903,55 @@ That's it! The dashboard will automatically use your configured webhook URL.
     }
 
     function processLeadsData(leads) {
-      console.log('Processing leads data:', leads);
+      console.log('Processing leads data:', leads, state.currentCampaignId);
       
       if (!leads || !Array.isArray(leads)) {
         console.error('Invalid leads data');
         return null;
       }
 
+      // 1. Initialize emailSent status for all leads
+      // Assign a unique leadId if missing, and initialize emailSent
+      const processedLeads = leads.map((lead, index) => ({
+        ...lead,
+        leadId: lead.leadId || `${state.currentCampaignId}_${index}`, // Ensure a unique ID
+        emailSent: false, // New field for idempotency
+        // Add a default name if missing for display purposes
+        name: lead.name || `Lead ${index + 1}`
+      }));
+
       // Separate hot and cold leads (case-insensitive)
-      const hotLeads = leads.filter(lead => 
+      const hotLeads = processedLeads.filter(lead => 
         lead.classification && lead.classification.toLowerCase() === 'hot'
       );
       
-      const otherLeads = leads.filter(lead => 
+      const otherLeads = processedLeads.filter(lead => 
         !lead.classification || lead.classification.toLowerCase() !== 'hot'
       );
 
       console.log(`Processed: ${hotLeads.length} hot leads, ${otherLeads.length} other leads`);
 
-      // Store leads in state for Excel export
+      // Store leads in state for use in email functions and Excel export
       state.hotLeads = hotLeads;
       state.coldLeads = otherLeads; // Renamed to coldLeads for consistency with excel export function
+      state.allLeads = processedLeads; // Store all leads for easy lookup and bulk processing
 
       return {
         hot_leads: {
           count: hotLeads.length,
-          leads: hotLeads,
-          word_report_url: "https://example.com/reports/hot-leads.docx",
-          pdf_report_url: "https://example.com/reports/hot-leads.pdf"
+          leads: hotLeads
         },
         other_leads: {
           count: otherLeads.length,
           leads: otherLeads,
           email_template_populated: true
         },
-        total_leads: leads.length,
-        all_leads: leads
+        total_leads: processedLeads.length,
+        all_leads: processedLeads
       };
     }
 
-    function renderLeadsTable(containerId, leads) {
+    function renderLeadsTable(containerId, leads, totalCount) {
       const container = document.getElementById(containerId);
       if (!container) return;
 
@@ -974,6 +970,8 @@ That's it! The dashboard will automatically use your configured webhook URL.
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Relevance Score</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Keywords</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Link</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email sent</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
@@ -990,6 +988,24 @@ That's it! The dashboard will automatically use your configured webhook URL.
                   <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     ${lead.url ? `<a href="${lead.url}" target="_blank" class="text-indigo-600 hover:text-indigo-900">View</a>` : 'N/A'}
                   </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <span class="email-sent-status-${lead.leadId}">
+                      ${lead.emailSent ? '<span class="text-green-500 text-xl">✓</span>' : '—'}
+                    </span>
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    ${(lead.email && lead.email.includes('@')) ? 
+                      `<button 
+                        id="send-email-btn-${lead.leadId}"
+                        onclick="sendSingleEmail('${lead.leadId}')" 
+                        class="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors ${lead.emailSent ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}"
+                        ${lead.emailSent ? 'disabled' : ''}
+                      >
+                        Send email
+                      </button>` : 
+                      `<span class="text-xs text-red-500">No Email</span>`
+                    }
+                  </td>
                 </tr>
               `).join('')}
             </tbody>
@@ -999,6 +1015,7 @@ That's it! The dashboard will automatically use your configured webhook URL.
       container.innerHTML = tableHtml;
     }
 
+    /*
     function downloadReport(format) {
       if (!state.resultsData) {
         showToast('No results available', 'error');
@@ -1016,6 +1033,7 @@ That's it! The dashboard will automatically use your configured webhook URL.
         showToast(`Downloading ${format.toUpperCase()} report...`, 'success');
       }
     }
+    */
 
     function downloadExcel() {
       if (!state.resultsData) {
@@ -1104,6 +1122,219 @@ That's it! The dashboard will automatically use your configured webhook URL.
       state.currentLanguage = document.getElementById('email-language').value;
     }
 
+    // ========================================
+    // NEW EMAIL SENDING FUNCTIONS
+    // ========================================
+
+    // Helper to find a lead by ID
+    function findLeadById(leadId) {
+      return state.allLeads.find(lead => lead.leadId === leadId);
+    }
+
+    // Helper to update the UI for a single lead after a send attempt
+    function updateLeadUI(leadId, success) {
+      const lead = findLeadById(leadId);
+      if (!lead) return;
+
+      if (success) {
+        lead.emailSent = true;
+        // Update the tick icon
+        const statusSpan = document.querySelector(`.email-sent-status-${leadId}`);
+        if (statusSpan) {
+          statusSpan.innerHTML = '<span class="text-green-500 text-xl">✓</span>';
+        }
+        // Disable the button
+        const button = document.getElementById(`send-email-btn-${leadId}`);
+        if (button) {
+          button.disabled = true;
+          button.classList.remove('bg-indigo-600', 'hover:bg-indigo-700', 'text-white');
+          button.classList.add('bg-gray-300', 'text-gray-600', 'cursor-not-allowed');
+        }
+      }
+      // Re-render the bulk button to update the eligible count
+      updateBulkButtonState();
+    }
+
+    // Helper to update the bulk send button state (eligible count and disabled status)
+    function updateBulkButtonState() {
+      ['hot-leads-table', 'other-leads-table'].forEach(containerId => {
+        const leads = containerId === 'hot-leads-table' ? state.hotLeads : state.coldLeads;
+        const eligibleCount = leads.filter(l => l.email && l.email.includes('@') && !l.emailSent).length;
+        const allButton = document.getElementById(`send-all-emails-btn-${containerId}`);
+
+        if (allButton) {
+          allButton.textContent = `Send all emails (${eligibleCount} eligible)`;
+          if (eligibleCount === 0) {
+            allButton.disabled = true;
+            allButton.classList.remove('bg-green-600', 'hover:bg-green-700', 'text-white');
+            allButton.classList.add('bg-gray-300', 'text-gray-600', 'cursor-not-allowed');
+          } else {
+            allButton.disabled = false;
+            allButton.classList.remove('bg-gray-300', 'text-gray-600', 'cursor-not-allowed');
+            allButton.classList.add('bg-green-600', 'hover:bg-green-700', 'text-white');
+          }
+        }
+      });
+    }
+
+    // Helper to construct the metadata object
+    function getLeadMetadata(lead) {
+      // The requirement is to echo only the row fields currently rendered (e.g., url, classification)
+      // The rendered fields are: name, classification, relevance_score, relevance_keywords, url
+      return {
+        url: lead.url || null,
+        classification: lead.classification || null,
+        relevance_score: lead.relevance_score || null,
+        relevance_keywords: lead.relevance_keywords || null,
+        // The original data structure might have other fields like lead_number, handle, type, reach, engagement_total
+        // We will include them as they are part of the original lead object and might be useful
+        lead_number: lead.lead_number || null,
+        handle: lead.handle || null,
+        type: lead.type || null,
+        reach: lead.reach || null,
+        engagement_total: lead.engagement_total || null,
+      };
+    }
+
+    // Single Email Send Logic
+    async function sendSingleEmail(leadId) {
+      const lead = findLeadById(leadId);
+      if (!lead || lead.emailSent || !lead.email || !lead.email.includes('@')) {
+        showToast('Email already sent or no valid email address.', 'warning');
+        return;
+      }
+
+      const button = document.getElementById(`send-email-btn-${leadId}`);
+      if (button) button.disabled = true;
+
+      const payload = {
+        campaignId: state.currentCampaignId || 'N/A',
+        leadId: lead.leadId,
+        email: lead.email,
+        name: lead.name || null,
+        source: lead.type || null, // Assuming 'type' is the source
+        emailLanguage: state.currentLanguage,
+        metadata: getLeadMetadata(lead)
+      };
+
+      console.log('Single send payload:', payload);
+      
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30-second timeout
+
+        const response = await fetch(EMAIL_WEBHOOK_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          updateLeadUI(leadId, true);
+          showToast('Email sent successfully!', 'success');
+          console.log(`Single email sent for lead ${leadId}.`);
+        } else {
+          throw new Error(`HTTP Error: ${response.status}`);
+        }
+      } catch (e) {
+        if (e.name === 'AbortError') {
+          showToast('Email send failed: Request timed out (30s).', 'error');
+          console.error(`Email send failed for lead ${leadId}: Request timed out.`);
+        } else {
+          showToast(`Email send failed: ${e.message}`, 'error');
+          console.error(`Email send failed for lead ${leadId}: ${e.message}`);
+        }
+        if (button) button.disabled = false; // Re-enable button on failure
+      }
+    }
+
+    // Bulk Email Send Logic
+    async function sendBulkEmails(containerId) {
+      const leads = containerId === 'hot-leads-table' ? state.hotLeads : state.coldLeads;
+      const eligibleLeads = leads.filter(l => l.email && l.email.includes('@') && !l.emailSent);
+      
+      if (eligibleLeads.length === 0) {
+        showToast('No eligible emails to send.', 'warning');
+        return;
+      }
+
+      const confirmed = confirm(`Send emails to ${eligibleLeads.length} eligible leads?`);
+      if (!confirmed) return;
+
+      const allButton = document.getElementById(`send-all-emails-btn-${containerId}`);
+      if (allButton) allButton.disabled = true;
+
+      let sentCount = 0;
+      let failedCount = 0;
+      let skippedCount = leads.length - eligibleLeads.length; // Already sent or no email
+
+      const chunkSize = 100;
+      const totalChunks = Math.ceil(eligibleLeads.length / chunkSize);
+      
+      const leadsToProcess = [...eligibleLeads]; // Clone the array to process
+
+      for (let i = 0; i < totalChunks; i++) {
+        const chunk = leadsToProcess.slice(i * chunkSize, (i + 1) * chunkSize);
+        
+        const bulkPayload = {
+          campaignId: state.currentCampaignId || 'N/A',
+          emailLanguage: state.currentLanguage,
+          total: chunk.length,
+          emails: chunk.map(lead => ({
+            leadId: lead.leadId,
+            email: lead.email,
+            name: lead.name || null,
+            source: lead.type || null,
+            metadata: getLeadMetadata(lead)
+          }))
+        };
+
+        console.log(`Bulk send: Processing chunk ${i + 1}/${totalChunks} with ${chunk.length} leads.`);
+        
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 30000); // 30-second timeout
+
+          const response = await fetch(EMAIL_WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(bulkPayload),
+            signal: controller.signal
+          });
+
+          clearTimeout(timeoutId);
+
+          if (response.ok) {
+            sentCount += chunk.length;
+            chunk.forEach(lead => updateLeadUI(lead.leadId, true));
+            console.log(`Chunk ${i + 1} sent successfully.`);
+          } else {
+            failedCount += chunk.length;
+            console.error(`Chunk ${i + 1} failed with HTTP status: ${response.status}`);
+          }
+        } catch (e) {
+          failedCount += chunk.length;
+          if (e.name === 'AbortError') {
+            console.error(`Chunk ${i + 1} failed: Request timed out (30s).`);
+          } else {
+            console.error(`Chunk ${i + 1} failed: ${e.message}`);
+          }
+        }
+      }
+
+      // Final summary toast
+      const totalProcessed = sentCount + failedCount;
+      const totalSkipped = skippedCount + (eligibleLeads.length - totalProcessed); // Should be 0 if logic is perfect, but safe to include
+      
+      showToast(`Bulk send complete: Sent: ${sentCount}, Failed: ${failedCount}, Skipped: ${totalSkipped}`, failedCount > 0 ? 'warning' : 'success');
+      
+      // Re-enable the button if there are still eligible leads (only if the failure was partial)
+      updateBulkButtonState();
+    }
+
     function previewEmail() {
       const language = state.currentLanguage;
       const template = EMAIL_TEMPLATES[language];
@@ -1155,6 +1386,10 @@ That's it! The dashboard will automatically use your configured webhook URL.
       });
     }
 
+    // The original sendEmails function is now replaced by sendSingleEmail and sendBulkEmails.
+    // The original button was removed in the previous phase.
+    // Keeping the function body commented out for reference, but it is no longer used.
+    /*
     async function sendEmails() {
       if (!state.resultsData) {
         showToast('No results available', 'error');
@@ -1187,6 +1422,7 @@ That's it! The dashboard will automatically use your configured webhook URL.
         showToast(`Error sending emails: ${e.message}`, 'error');
       }
     }
+    */
 
     function startNewCampaign() {
       // Reset state
