@@ -231,112 +231,132 @@ That's it! The dashboard will automatically use your configured webhook URL.
                   <div id="confidence-score" class="font-semibold text-gray-900">95%</div>
                 </div>
                 <div>
-                  <div class="text-gray-600">Rows Processed</div>
-                  <div id="rows-processed" class="font-semibold text-gray-900">0</div>
+                  <div class="text-gray-600">Output Format</div>
+                  <div id="output-format" class="font-semibold text-gray-900">JSON</div>
                 </div>
               </div>
             </div>
+            <div class="mt-4 flex justify-between items-center">
+              <button id="use-conversion-btn" onclick="useConvertedJSON()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors disabled:opacity-50" disabled>
+                Use Converted JSON
+              </button>
+              <button onclick="clearFileUpload()" class="text-sm text-gray-500 hover:text-gray-700">
+                Clear File
+              </button>
+            </div>
           </div>
         </div>
-
-        <!-- Action Buttons -->
-        <div class="flex gap-3">
-          <button
-            id="use-conversion-btn"
-            onclick="useConvertedData()"
-            class="flex-1 px-4 py-2 bg-green-600 text-white rounded-md font-semibold hover:bg-green-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
-            disabled
-          >
-            Use Conversion
-          </button>
-          <button
-            id="convert-file-btn"
-            onclick="convertFile()"
-            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md font-semibold hover:bg-blue-700 transition-colors"
-          >
-            Convert with AI
-          </button>
-        </div>
+      </div>
+      
+      <!-- Conversion Button -->
+      <div class="flex justify-center">
+        <button id="convert-file-btn" onclick="convertFile()" class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors disabled:opacity-50">
+          Convert with AI
+        </button>
       </div>
     </div>
 
-    <!-- Campaign Input Section -->
+    <!-- Campaign Configuration Section -->
     <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6 mb-6">
-      <h2 class="text-2xl font-semibold text-gray-900 mb-4">Campaign Configuration</h2>
+      <h2 class="text-2xl font-semibold text-gray-900 mb-4">⚙️ Campaign Configuration</h2>
       
-      <!-- Pipeline Selection -->
-      <div class="mb-4">
-        <label for="pipeline-select" class="block text-sm font-medium text-gray-700 mb-2">
-          Select Pipeline
-        </label>
-        <select
-          id="pipeline-select"
-          class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        >
-          <option value="linkedin">LinkedIn/Web Scraping</option>
-          <option value="google_maps">Google Maps Scraping</option>
-          <option value="social_media">Social Media Scraping</option>
-        </select>
-      </div>
-
-      <!-- JSON Input -->
-      <div class="mb-4">
-        <div class="flex justify-between items-center mb-2">
-          <label for="campaign-json" class="block text-sm font-medium text-gray-700">
-            Campaign JSON
-          </label>
-          <button
-            onclick="loadSampleJSON()"
-            class="text-sm text-blue-600 hover:text-blue-800 font-medium"
-          >
-            Load Sample JSON
-          </button>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        <!-- Left Column: JSON Input -->
+        <div class="md:col-span-2">
+          <label for="campaign-json" class="block text-sm font-medium text-gray-700 mb-2">Campaign JSON</label>
+          <textarea
+            id="campaign-json"
+            rows="15"
+            class="w-full p-3 border border-gray-300 rounded-lg font-mono text-sm focus:ring-blue-500 focus:border-blue-500"
+            placeholder='{
+  "campaign_name": "Tech Startups NY",
+  "industry": "Technology",
+  "location": "New York, NY",
+  "company_size": "1-50",
+  "scraping_sources": [
+    "linkedin",
+    "company_website"
+  ]
+}'
+            oninput="validateJSON()"
+          ></textarea>
+          <div id="json-error" class="text-red-500 text-sm mt-2 hidden">Invalid JSON format.</div>
+          <div class="flex justify-between mt-3">
+            <button onclick="loadSampleJSON()" class="text-sm text-blue-600 hover:text-blue-800 font-medium">Load Sample</button>
+            <button onclick="clearForm()" class="text-sm text-gray-500 hover:text-gray-700 font-medium">Clear</button>
+          </div>
         </div>
-        <textarea
-          id="campaign-json"
-          rows="12"
-          placeholder='Paste your campaign JSON here or use "Load Sample JSON"...'
-          class="w-full px-4 py-3 border border-gray-300 rounded-md font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        ></textarea>
-        <div id="json-error" class="mt-2 text-sm text-red-600 hidden"></div>
-        <div id="json-success" class="mt-2 text-sm text-green-600 hidden">✓ Valid JSON</div>
+        
+        <!-- Right Column: Pipeline & Options -->
+        <div>
+          <div class="mb-6">
+            <label for="pipeline-select" class="block text-sm font-medium text-gray-700 mb-2">Select Pipeline</label>
+            <select id="pipeline-select" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+              <option value="linkedin_profile_urls">LinkedIn/Web Scraping</option>
+              <option value="google_maps_scraper">Google Maps Scraper</option>
+              <option value="facebook_search_scraper">Facebook Search Scraper</option>
+              <option value="instagram_scraper">Instagram Scraper</option>
+              <option value="tiktok_scraper">TikTok Scraper</option>
+              <option value="social_media">Multi-Channel Social</option>
+            </select>
+          </div>
+          
+          <div class="mb-6">
+            <label class="block text-sm font-medium text-gray-700 mb-2">AI Enrichment</label>
+            <div class="space-y-2">
+              <div class="flex items-center">
+                <input type="checkbox" id="enrichment-enabled" checked class="rounded text-blue-600">
+                <label for="enrichment-enabled" class="ml-2 text-sm text-gray-700">Enable Enrichment</label>
+              </div>
+              <div class="flex items-center">
+                <input type="checkbox" id="ai-scoring" checked class="rounded text-blue-600">
+                <label for="ai-scoring" class="ml-2 text-sm text-gray-700">AI Scoring</label>
+              </div>
+            </div>
+          </div>
+          
+          <div class="mb-6">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Output Preferences</label>
+            <div class="space-y-2">
+              <div class="flex items-center">
+                <label for="not-lead-threshold" class="text-sm text-gray-700 mr-2">Not-Lead Threshold:</label>
+                <input type="number" id="not-lead-threshold" value="0" min="0" max="100" class="w-16 p-1 border border-gray-300 rounded-lg text-sm">
+              </div>
+              <div class="flex items-center">
+                <label for="report-format" class="text-sm text-gray-700 mr-2">Report Format:</label>
+                <select id="report-format" class="p-1 border border-gray-300 rounded-lg text-sm">
+                  <option value="word">Word</option>
+                  <option value="pdf">PDF</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          
+          <div class="mb-6">
+            <label for="email-language" class="block text-sm font-medium text-gray-700 mb-2">Email Language</label>
+            <select id="email-language" onchange="updateEmailLanguage()" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+              <option value="english">English</option>
+              <option value="spanish">Spanish</option>
+              <option value="french">French</option>
+            </select>
+          </div>
+        </div>
       </div>
-
-      <!-- File Upload -->
-      <div class="mb-4">
-        <label class="block text-sm font-medium text-gray-700 mb-2">
-          Or Upload Campaign JSON
-        </label>
-        <input
-          type="file"
-          id="json-file-upload"
-          accept=".json"
-          class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-        />
-      </div>
-
+      
       <!-- Action Buttons -->
-      <div class="flex gap-3">
-        <button
-          id="run-campaign-btn"
-          onclick="runCampaign()"
-          disabled
-          class="flex-1 px-6 py-3 bg-blue-600 text-white rounded-md font-semibold text-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
-        >
+      <div class="mt-6 flex justify-between items-center">
+        <button id="run-campaign-btn" onclick="runCampaign()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition-colors disabled:opacity-50" disabled>
           Run Campaign
         </button>
-        <button
-          onclick="clearForm()"
-          class="px-6 py-3 bg-gray-200 text-gray-700 rounded-md font-medium hover:bg-gray-300 transition-colors"
-        >
-          Clear
-        </button>
-        <button
-          onclick="duplicateLastCampaign()"
-          class="px-6 py-3 bg-gray-200 text-gray-700 rounded-md font-medium hover:bg-gray-300 transition-colors"
-        >
-          Duplicate Last
-        </button>
+        <div class="flex space-x-3">
+          <button onclick="clearForm()" class="text-gray-600 hover:text-gray-800 font-medium py-3 px-4 rounded-lg border border-gray-300">
+            Clear
+          </button>
+          <button onclick="duplicateLastCampaign()" class="text-blue-600 hover:text-blue-800 font-medium py-3 px-4 rounded-lg border border-blue-300">
+            Duplicate Last
+          </button>
+        </div>
       </div>
     </div>
 
@@ -344,559 +364,271 @@ That's it! The dashboard will automatically use your configured webhook URL.
     <div id="status-section" class="bg-white rounded-lg shadow-md border border-gray-200 p-6 mb-6 hidden">
       <h2 class="text-2xl font-semibold text-gray-900 mb-4">Campaign Status</h2>
       
-      <div class="space-y-4">
-        <!-- Campaign ID and Timer -->
-        <div class="flex justify-between items-center">
-          <div>
-            <span class="text-sm text-gray-600">Campaign ID:</span>
-            <span id="campaign-id" class="ml-2 font-mono text-sm font-semibold text-gray-900"></span>
-          </div>
-          <div>
-            <span class="text-sm text-gray-600">Elapsed Time:</span>
-            <span id="elapsed-time" class="ml-2 font-mono text-sm font-semibold text-gray-900">0:00</span>
-          </div>
+      <div class="flex justify-between items-center mb-4">
+        <div>
+          <span class="text-sm font-medium text-gray-500">Campaign ID:</span>
+          <span id="campaign-id" class="text-sm font-semibold text-gray-800">camp_vcD4v35uk_1762991597620</span>
         </div>
-
-        <!-- Status Indicator -->
-        <div class="flex items-center gap-3">
-          <div id="status-indicator" class="w-4 h-4 rounded-full bg-gray-400"></div>
-          <span id="status-text" class="text-lg font-medium text-gray-900">Pending</span>
+        <div>
+          <span class="text-sm font-medium text-gray-500">Elapsed Time:</span>
+          <span id="elapsed-time" class="text-sm font-semibold text-gray-800">0:00</span>
         </div>
-
-        <!-- Progress Bar -->
-        <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-          <div id="progress-bar" class="progress-bar h-full bg-blue-600 rounded-full" style="width: 0%"></div>
-        </div>
-        <div class="text-sm text-gray-600 text-right">
-          <span id="progress-percentage">0</span>% Complete
-        </div>
-
-        <!-- Current Step -->
-        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div class="text-sm text-gray-600 mb-1">Current Step:</div>
-          <div id="current-step" class="text-base font-medium text-gray-900">Initializing...</div>
-        </div>
-
-        <!-- Estimated Time Remaining -->
-        <div class="text-sm text-gray-600">
-          Estimated Time Remaining: <span id="time-remaining" class="font-semibold">Calculating...</span>
-        </div>
+      </div>
+      
+      <div class="flex items-center space-x-3 mb-4">
+        <div id="status-indicator" class="w-4 h-4 rounded-full bg-blue-500 pulse-animation"></div>
+        <span id="status-text" class="text-lg font-semibold text-gray-800">Running</span>
+      </div>
+      
+      <div class="w-full bg-gray-200 rounded-full h-2.5 mb-4">
+        <div id="progress-bar" class="progress-bar h-2.5 bg-blue-600 rounded-full" style="width: 0%"></div>
+      </div>
+      <div class="flex justify-end text-sm font-medium text-gray-600">
+        <span id="progress-percentage">0</span>% Complete
+      </div>
+      
+      <div class="mt-4">
+        <span class="text-sm font-medium text-gray-500">Current Step:</span>
+        <div id="current-step" class="text-lg font-semibold text-gray-800">Initializing campaign...</div>
+      </div>
+      
+      <div class="mt-2">
+        <span class="text-sm font-medium text-gray-500">Estimated Time Remaining:</span>
+        <span id="estimated-time" class="text-sm font-semibold text-gray-800">Calculating...</span>
       </div>
     </div>
 
-    <!-- Results Section -->
-    <div id="results-section" class="hidden">
-      <div class="grid md:grid-cols-2 gap-6">
-        
-        <!-- Hot Leads -->
-        <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
-          <div class="flex items-center gap-2 mb-4">
-            <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-            </svg>
-            <h2 class="text-2xl font-semibold text-gray-900">Hot Leads</h2>
-          </div>
-          
-          <div class="mb-4">
-            <div class="text-4xl font-bold text-green-600" id="hot-leads-count">0</div>
-            <div class="text-sm text-gray-600">High-priority leads identified</div>
-          </div>
-
-          <div class="space-y-3">
-            <button
-              onclick="downloadReport('word')"
-              class="w-full px-4 py-3 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-            >
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-              </svg>
-              Download Word Report
-            </button>
-            <button
-              onclick="downloadReport('pdf')"
-              class="w-full px-4 py-3 bg-red-600 text-white rounded-md font-medium hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
-            >
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
-              </svg>
-              Download PDF Report
-            </button>
-            <button
-              onclick="downloadExcel()"
-              class="w-full px-4 py-3 bg-green-600 text-white rounded-md font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
-            >
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-              </svg>
-              Download Excel Report
-            </button>
-            <button
-              onclick="showPreviewSummary()"
-              class="w-full px-4 py-3 bg-gray-200 text-gray-700 rounded-md font-medium hover:bg-gray-300 transition-colors"
-            >
-              Preview Summary
-            </button>
-          </div>
+    <!-- Campaign Results Section -->
+    <div id="results-section" class="bg-white rounded-lg shadow-md border border-gray-200 p-6 hidden">
+      <h2 class="text-2xl font-semibold text-gray-900 mb-4">✅ Campaign Results</h2>
+      
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <div class="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+          <div class="text-4xl font-bold text-green-800" id="hot-leads-count">0</div>
+          <div class="text-sm font-medium text-green-700">Hot Leads</div>
         </div>
-
-        <!-- Other Leads -->
-        <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
-          <div class="flex items-center gap-2 mb-4">
-            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
-            </svg>
-            <h2 class="text-2xl font-semibold text-gray-900">Other Leads</h2>
-          </div>
-          
-          <div class="mb-4">
-            <div class="text-4xl font-bold text-blue-600" id="other-leads-count">0</div>
-            <div class="text-sm text-gray-600">Leads for email outreach</div>
-          </div>
-
-          <!-- Language Selector -->
-          <div class="mb-4">
-            <label for="email-language" class="block text-sm font-medium text-gray-700 mb-2">
-              Email Language
-            </label>
-            <select
-              id="email-language"
-              onchange="updateEmailLanguage()"
-              class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="en">English</option>
-              <option value="es">Spanish</option>
-              <option value="fr">French</option>
-              <option value="ar">Arabic</option>
-              <option value="de">German</option>
-            </select>
-          </div>
-
-          <div class="space-y-3">
-            <button
-              onclick="previewEmail()"
-              class="w-full px-4 py-3 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition-colors"
-            >
-              Preview Email
-            </button>
-            <button
-              onclick="copyEmailContent()"
-              class="w-full px-4 py-3 bg-gray-200 text-gray-700 rounded-md font-medium hover:bg-gray-300 transition-colors"
-            >
-              Copy Email Content
-            </button>
-            <button
-              onclick="sendEmails()"
-              class="w-full px-4 py-3 bg-green-600 text-white rounded-md font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
-            >
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
-              </svg>
-              Send Emails
-            </button>
-          </div>
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+          <div class="text-4xl font-bold text-blue-800" id="other-leads-count">0</div>
+          <div class="text-sm font-medium text-blue-700">Other Leads</div>
+        </div>
+        <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
+          <div class="text-4xl font-bold text-gray-800" id="total-leads">0</div>
+          <div class="text-sm font-medium text-gray-700">Total Leads Found</div>
         </div>
       </div>
-
-      <!-- Campaign Summary -->
-      <div class="mt-6 bg-white rounded-lg shadow-md border border-gray-200 p-6">
-        <h3 class="text-xl font-semibold text-gray-900 mb-4">Campaign Summary</h3>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div class="text-center p-4 bg-gray-50 rounded-lg">
-            <div class="text-2xl font-bold text-gray-900" id="total-leads">0</div>
-            <div class="text-sm text-gray-600">Total Leads</div>
-          </div>
-          <div class="text-center p-4 bg-green-50 rounded-lg">
-            <div class="text-2xl font-bold text-green-600" id="hot-leads-summary">0</div>
-            <div class="text-sm text-gray-600">Hot Leads</div>
-          </div>
-          <div class="text-center p-4 bg-blue-50 rounded-lg">
-            <div class="text-2xl font-bold text-blue-600" id="other-leads-summary">0</div>
-            <div class="text-sm text-gray-600">Other Leads</div>
-          </div>
-          <div class="text-center p-4 bg-purple-50 rounded-lg">
-            <div class="text-2xl font-bold text-purple-600" id="campaign-duration">0m</div>
-            <div class="text-sm text-gray-600">Duration</div>
-          </div>
+      
+      <div class="flex justify-between items-center text-sm text-gray-600 mb-6">
+        <div>
+          <span class="font-medium">Campaign ID:</span> <span id="results-campaign-id"></span>
         </div>
+        <div>
+          <span class="font-medium">Duration:</span> <span id="campaign-duration">0m</span>
+        </div>
+      </div>
+      
+      <!-- Hot Leads Section -->
+      <div class="mb-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">🔥 Hot Leads (<span id="hot-leads-summary">0</span>)</h3>
+        <p class="text-sm text-gray-600 mb-4">These leads match your ideal customer profile and are ready for immediate outreach.</p>
         
-        <div class="mt-4 flex gap-3">
-          <button
-            onclick="startNewCampaign()"
-            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition-colors"
-          >
-            Start New Campaign
+        <div id="hot-leads-table" class="mt-4"></div>
+        
+        <div class="mt-4 flex space-x-3">
+          <button onclick="downloadReport('word')" class="bg-yellow-500 hover:bg-yellow-600 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+            Download Word Report
           </button>
-          <button
-            onclick="exportHistory()"
-            class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md font-medium hover:bg-gray-300 transition-colors"
-          >
-            Export History
+          <button onclick="downloadReport('pdf')" class="bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+            Download PDF Report
+          </button>
+          <button onclick="downloadExcel()" class="bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+            Export to Excel
           </button>
         </div>
+      </div>
+      
+      <!-- Other Leads Section -->
+      <div class="mb-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">🧊 Other Leads (<span id="other-leads-summary">0</span>)</h3>
+        <p class="text-sm text-gray-600 mb-4">These leads require a nurturing sequence. Use the AI-generated email template below.</p>
+        
+        <div id="other-leads-table" class="mt-4"></div>
+        
+        <div class="mt-4 flex space-x-3">
+          <button onclick="previewEmail()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+            Preview Email Template
+          </button>
+          <button onclick="sendEmails()" class="bg-pink-600 hover:bg-pink-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+            Send Emails
+          </button>
+        </div>
+      </div>
+      
+      <!-- History and New Campaign -->
+      <div class="border-t border-gray-200 pt-6 flex justify-between items-center">
+        <button onclick="exportHistory()" class="text-sm text-gray-500 hover:text-gray-700 font-medium">
+          Export History
+        </button>
+        <button onclick="startNewCampaign()" class="bg-gray-800 hover:bg-gray-900 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+          Start New Campaign
+        </button>
       </div>
     </div>
-
+    
+    <!-- Footer -->
+    <footer class="text-center text-sm text-gray-500 mt-12 py-4 border-t border-gray-200">
+      © 2025 Lead Generation Dashboard | Version 1.0.0 | <a href="#" class="text-blue-600 hover:text-blue-800">Documentation</a>
+    </footer>
   </main>
-
-  <!-- Footer -->
-  <footer class="bg-white border-t border-gray-200 mt-12">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center">
-      <p class="text-sm text-gray-600">
-        &copy; 2025 Lead Generation Dashboard | Version 1.0.0 | 
-        <a href="#" class="text-blue-600 hover:text-blue-800">Documentation</a>
-      </p>
-    </div>
-  </footer>
 
   <script>
     // ========================================
-    // CONFIGURATION SECTION - EDIT THIS PART
+    // CONFIGURATION SECTION
     // ========================================
-    // Replace 'YOUR_N8N_WEBHOOK_URL_HERE' with your actual n8n webhook URL
-    // Example: const N8N_WEBHOOK_URL = 'https://your-n8n-instance.com/webhook/lead-campaign';
-    const N8N_WEBHOOK_URL = 'https://primary-production-3af69.up.railway.app/webhook-test/NewLeadGen';
+    // !!! IMPORTANT !!! Replace with your actual n8n webhook URL
+    const N8N_WEBHOOK_URL = 'https://primary-production-3af69.up.railway.app/webhook-test/NewLeadGen'; 
     // ========================================
-    // END CONFIGURATION SECTION
-    // ========================================
+    
+    const STATUS_MESSAGES = {
+      initializing: 'Initializing campaign...',
+      scraping_linkedin: 'Scraping LinkedIn profiles...',
+      enriching: 'Enriching lead data with AI...',
+      scoring: 'AI scoring and classification...',
+      generating_reports: 'Generating reports...',
+      preparing_emails: 'Preparing personalized emails...',
+      completed: 'Campaign completed. Results ready.'
+    };
 
-    // Application State
-    let state = {
+    const EMAIL_TEMPLATES = {
+      english: {
+        subject: "Quick question about {{business_name}}'s growth",
+        body: `
+          <p>Hi {{lead_name}},</p>
+          <p>I noticed your company, <strong>{{business_name}}</strong>, in {{location}}. We specialize in helping companies like yours with their digital presence.</p>
+          <p>Based on our analysis, we believe we can significantly help you with: <strong>{{service_suggestions}}</strong>.</p>
+          <p>Would you be open to a quick 15-minute chat next week to discuss this further?</p>
+          <p>You can book a time directly here: <a href="{{cta_link}}">{{cta_link}}</a></p>
+          <p>Best regards,</p>
+          <p>[Your Name]</p>
+        `
+      },
+      spanish: {
+        subject: "Una pregunta rápida sobre el crecimiento de {{business_name}}",
+        body: `
+          <p>Hola {{lead_name}},</p>
+          <p>Noté su empresa, <strong>{{business_name}}</strong>, en {{location}}. Nos especializamos en ayudar a empresas como la suya con su presencia digital.</p>
+          <p>Según nuestro análisis, creemos que podemos ayudarle significativamente con: <strong>{{service_suggestions}}</strong>.</p>
+          <p>¿Estaría abierto a una conversación rápida de 15 minutos la próxima semana para discutir esto más a fondo?</p>
+          <p>Puede reservar una hora directamente aquí: <a href="{{cta_link}}">{{cta_link}}</a></p>
+          <p>Saludos cordiales,</p>
+          <p>[Su Nombre]</p>
+        `
+      },
+      french: {
+        subject: "Une question rapide sur la croissance de {{business_name}}",
+        body: `
+          <p>Bonjour {{lead_name}},</p>
+          <p>J'ai remarqué votre entreprise, <strong>{{business_name}}</strong>, à {{location}}. Nous sommes spécialisés dans l'aide aux entreprises comme la vôtre pour leur présence numérique.</p>
+          <p>Sur la base de notre analyse, nous pensons pouvoir vous aider de manière significative avec : <strong>{{service_suggestions}}</strong>.</p>
+          <p>Seriez-vous disponible pour une courte discussion de 15 minutes la semaine prochaine pour en discuter davantage ?</p>
+          <p>Vous pouvez réserver un créneau directement ici : <a href="{{cta_link}}">{{cta_link}}</a></p>
+          <p>Cordialement,</p>
+          <p>[Votre Nom]</p>
+        `
+      }
+    };
+
+    // Mock response structure for demo mode
+    const MOCK_LEADS_RESPONSE = {
+      summary: {
+        total: 5,
+        hot: 2,
+        cold: 3,
+        batch_id: "1",
+        pipeline: "linkedin_profile_urls"
+      },
+      columns: [
+        "lead_number", "type", "name", "handle", "url", "classification", "reach", "engagement_total", "relevance_score", "relevance_keywords"
+      ],
+      rows: [
+        { "lead_number": 1, "type": "linkedin_profile_urls", "name": "Marie G", "handle": null, "url": "https://linkedin.com/in/marie-g", "classification": "Hot", "reach": 100, "engagement_total": 50, "relevance_score": 90, "relevance_keywords": ["AI", "SaaS"] },
+        { "lead_number": 2, "type": "linkedin_profile_urls", "name": "Yu Bao", "handle": null, "url": "https://linkedin.com/in/yu-bao", "classification": "Cold", "reach": 50, "engagement_total": 10, "relevance_score": 40, "relevance_keywords": ["Fintech"] },
+        { "lead_number": 3, "type": "linkedin_profile_urls", "name": "Brian LaReau", "handle": null, "url": "https://linkedin.com/in/brian-l", "classification": "Hot", "reach": 120, "engagement_total": 60, "relevance_score": 95, "relevance_keywords": ["Cloud", "DevOps"] },
+        { "lead_number": 4, "type": "linkedin_profile_urls", "name": "Kento Matsuki", "handle": null, "url": "https://linkedin.com/in/kento-m", "classification": "Cold", "reach": 30, "engagement_total": 5, "relevance_score": 30, "relevance_keywords": ["Gaming"] },
+        { "lead_number": 5, "type": "linkedin_profile_urls", "name": "Ravi Karamsetty", "handle": null, "url": "https://linkedin.com/in/ravi-k", "classification": "Cold", "reach": 80, "engagement_total": 20, "relevance_score": 55, "relevance_keywords": ["E-commerce"] }
+      ]
+    };
+
+    // Global state object
+    const state = {
       demoMode: false,
       currentCampaignId: null,
-      pollingInterval: null,
       campaignStartTime: null,
       timerInterval: null,
+      pollingInterval: null,
+      resultsData: null,
       lastCampaignData: null,
       campaignHistory: [],
-      currentLanguage: 'en',
-      resultsData: null,
+      currentLanguage: 'english',
       uploadedFile: null,
       fileData: null,
-      convertedCampaignData: null,
       hotLeads: [],
       coldLeads: []
     };
 
-    // Sample data for demo mode
-    const MOCK_LEADS_RESPONSE = [
-      {
-        output: [
-          {
-            id: "msg_demo123",
-            type: "message",
-            status: "completed",
-            content: [
-              {
-                type: "output_text",
-                text: {
-                  leads: [
-                    {
-                      lead_number: 1,
-                      business_name: "Global Enterprises",
-                      classification: "Hot",
-                      lead_data: {
-                        employees: 1200,
-                        social_media_followers: 75000,
-                        revenue: 20000000
-                      }
-                    },
-                    {
-                      lead_number: 2,
-                      business_name: "Bright Future Ltd.",
-                      classification: "Cold",
-                      lead_data: {
-                        employees: 40,
-                        social_media_followers: 1500,
-                        revenue: 800000
-                      }
-                    },
-                    {
-                      lead_number: 3,
-                      business_name: "Innovative Solutions",
-                      classification: "Hot",
-                      lead_data: {
-                        employees: 800,
-                        social_media_followers: 95000,
-                        revenue: 30000000
-                      }
-                    },
-                    {
-                      lead_number: 4,
-                      business_name: "Tech Pioneers Inc",
-                      classification: "Hot",
-                      lead_data: {
-                        employees: 500,
-                        social_media_followers: 120000,
-                        revenue: 15000000
-                      }
-                    },
-                    {
-                      lead_number: 5,
-                      business_name: "Digital Dreams Co",
-                      classification: "Cold",
-                      lead_data: {
-                        employees: 25,
-                        social_media_followers: 800,
-                        revenue: 500000
-                      }
-                    }
-                  ]
-                }
-              }
-            ]
-          }
-        ]
-      }
-    ];
-
-    const SAMPLE_CAMPAIGN = {
-      campaign_name: "Tech Startups NYC",
-      target: {
-        industry: "Technology",
-        location: "New York, NY",
-        company_size: "1-50"
-      },
-      scraping_sources: ["linkedin", "company_website"],
-      enrichment: {
-        enabled: true,
-        ai_scoring: true
-      },
-      output_preferences: {
-        hot_lead_threshold: 8,
-        report_format: ["word", "pdf"],
-        email_language: "english"
-      }
-    };
-
-    const STATUS_MESSAGES = {
-      initializing: "Initializing campaign...",
-      scraping_linkedin: "Scraping LinkedIn profiles...",
-      scraping_google_maps: "Scraping Google Maps data...",
-      scraping_social: "Scraping social media profiles...",
-      enriching: "Enriching leads with AI...",
-      scoring: "Scoring and categorizing leads...",
-      generating_reports: "Generating hot lead reports...",
-      preparing_emails: "Preparing email templates...",
-      completing: "Finalizing campaign...",
-      completed: "Campaign completed successfully!"
-    };
-
-    const EMAIL_TEMPLATES = {
-      en: {
-        subject: "Exclusive Growth Opportunity for {{business_name}}",
-        body: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #1F2937;">Hi {{lead_name}},</h2>
-          <p style="color: #4B5563; line-height: 1.6;">I hope this email finds you well. I came across <strong>{{business_name}}</strong> in {{location}} and was impressed by your work.</p>
-          <p style="color: #4B5563; line-height: 1.6;">Based on my research, I believe we could help you with:</p>
-          <div style="background: #F3F4F6; padding: 15px; border-radius: 8px; margin: 20px 0;">
-            <p style="color: #374151; margin: 0;">{{service_suggestions}}</p>
-          </div>
-          <p style="color: #4B5563; line-height: 1.6;">Would you be open to a brief conversation?</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="{{cta_link}}" style="background: #3B82F6; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">Schedule a Call</a>
-          </div>
-          <p style="color: #6B7280; font-size: 14px;">Best regards,<br>Your Team</p>
-        </div>`
-      },
-      es: {
-        subject: "Oportunidad de Crecimiento Exclusiva para {{business_name}}",
-        body: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #1F2937;">Hola {{lead_name}},</h2>
-          <p style="color: #4B5563; line-height: 1.6;">Espero que este correo te encuentre bien. Encontré <strong>{{business_name}}</strong> en {{location}} y me impresionó su trabajo.</p>
-          <p style="color: #4B5563; line-height: 1.6;">Según mi investigación, creo que podríamos ayudarle con:</p>
-          <div style="background: #F3F4F6; padding: 15px; border-radius: 8px; margin: 20px 0;">
-            <p style="color: #374151; margin: 0;">{{service_suggestions}}</p>
-          </div>
-          <p style="color: #4B5563; line-height: 1.6;">¿Estaría abierto a una breve conversación?</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="{{cta_link}}" style="background: #3B82F6; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">Programar una Llamada</a>
-          </div>
-          <p style="color: #6B7280; font-size: 14px;">Saludos cordiales,<br>Su Equipo</p>
-        </div>`
-      },
-      fr: {
-        subject: "Opportunité de Croissance Exclusive pour {{business_name}}",
-        body: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #1F2937;">Bonjour {{lead_name}},</h2>
-          <p style="color: #4B5563; line-height: 1.6;">J'espère que ce courriel vous trouve bien. J'ai découvert <strong>{{business_name}}</strong> à {{location}} et j'ai été impressionné par votre travail.</p>
-          <p style="color: #4B5563; line-height: 1.6;">Selon mes recherches, je pense que nous pourrions vous aider avec:</p>
-          <div style="background: #F3F4F6; padding: 15px; border-radius: 8px; margin: 20px 0;">
-            <p style="color: #374151; margin: 0;">{{service_suggestions}}</p>
-          </div>
-          <p style="color: #4B5563; line-height: 1.6;">Seriez-vous ouvert à une brève conversation?</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="{{cta_link}}" style="background: #3B82F6; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">Planifier un Appel</a>
-          </div>
-          <p style="color: #6B7280; font-size: 14px;">Cordialement,<br>Votre Équipe</p>
-        </div>`
-      },
-      ar: {
-        subject: "فرصة نمو حصرية لـ {{business_name}}",
-        body: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; direction: rtl;">
-          <h2 style="color: #1F2937;">مرحباً {{lead_name}}،</h2>
-          <p style="color: #4B5563; line-height: 1.6;">أتمنى أن يجدك هذا البريد الإلكتروني بخير. لقد وجدت <strong>{{business_name}}</strong> في {{location}} وأعجبت بعملكم.</p>
-          <p style="color: #4B5563; line-height: 1.6;">بناءً على بحثي، أعتقد أننا يمكن أن نساعدك في:</p>
-          <div style="background: #F3F4F6; padding: 15px; border-radius: 8px; margin: 20px 0;">
-            <p style="color: #374151; margin: 0;">{{service_suggestions}}</p>
-          </div>
-          <p style="color: #4B5563; line-height: 1.6;">هل ستكون منفتحاً لإجراء محادثة قصيرة؟</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="{{cta_link}}" style="background: #3B82F6; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">جدولة مكالمة</a>
-          </div>
-          <p style="color: #6B7280; font-size: 14px;">مع أطيب التحيات,<br>فريقك</p>
-        </div>`
-      },
-      de: {
-        subject: "Exklusive Wachstumschance für {{business_name}}",
-        body: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #1F2937;">Hallo {{lead_name}},</h2>
-          <p style="color: #4B5563; line-height: 1.6;">Ich hoffe, diese E-Mail erreicht Sie wohlauf. Ich bin auf <strong>{{business_name}}</strong> in {{location}} gestoßen und war von Ihrer Arbeit beeindruckt.</p>
-          <p style="color: #4B5563; line-height: 1.6;">Basierend auf meiner Recherche glaube ich, dass wir Ihnen helfen können mit:</p>
-          <div style="background: #F3F4F6; padding: 15px; border-radius: 8px; margin: 20px 0;">
-            <p style="color: #374151; margin: 0;">{{service_suggestions}}</p>
-          </div>
-          <p style="color: #4B5563; line-height: 1.6;">Wären Sie offen für ein kurzes Gespräch?</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="{{cta_link}}" style="background: #3B82F6; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">Anruf Planen</a>
-          </div>
-          <p style="color: #6B7280; font-size: 14px;">Mit freundlichen Grüßen,<br>Ihr Team</p>
-        </div>`
-      }
-    };
-
-    // Initialize on page load
-    window.addEventListener('DOMContentLoaded', () => {
-      loadSettings();
-      initializeEventListeners();
-    });
-
-    function loadSettings() {
-      // Settings are maintained in memory only
-      // No localStorage available in sandboxed environment
-      
-      // Validate webhook URL configuration
-      if (N8N_WEBHOOK_URL === 'YOUR_N8N_WEBHOOK_URL_HERE') {
-        console.warn('⚠️ Warning: N8N_WEBHOOK_URL is not configured. Please edit the CONFIGURATION SECTION in the code.');
-      }
-      
-      updateLastCampaignSummary();
-    }
-
-    function initializeEventListeners() {
-      // JSON textarea validation
-      const jsonTextarea = document.getElementById('campaign-json');
-      jsonTextarea.addEventListener('input', validateJSON);
-
-      // File upload handler
-      const fileUpload = document.getElementById('json-file-upload');
-      fileUpload.addEventListener('change', handleFileUpload);
-
-      // Pipeline selection (no persistence in sandbox)
-      const pipelineSelect = document.getElementById('pipeline-select');
-      pipelineSelect.addEventListener('change', () => {
-        // Store in memory only
-      });
-
-      // Drag and drop for file upload
-      const dropZone = document.getElementById('file-drop-zone');
-      dropZone.addEventListener('click', () => {
-        document.getElementById('campaign-file-upload').click();
-      });
-
-      dropZone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropZone.classList.add('border-blue-500', 'bg-blue-50');
-      });
-
-      dropZone.addEventListener('dragleave', () => {
-        dropZone.classList.remove('border-blue-500', 'bg-blue-50');
-      });
-
-      dropZone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        dropZone.classList.remove('border-blue-500', 'bg-blue-50');
-        const files = e.dataTransfer.files;
-        if (files.length > 0) {
-          handleCampaignFileUpload({ target: { files } });
-        }
-      });
-    }
-
-
+    // ========================================
+    // CORE FUNCTIONS
+    // ========================================
 
     function toggleDemoMode() {
       state.demoMode = document.getElementById('demo-mode').checked;
-      if (state.demoMode) {
-        showToast('Demo mode enabled - using mock data', 'info');
-      }
+      showToast(state.demoMode ? 'Demo Mode Activated' : 'Demo Mode Deactivated', 'info');
     }
 
     function validateJSON() {
-      const textarea = document.getElementById('campaign-json');
-      const errorDiv = document.getElementById('json-error');
-      const successDiv = document.getElementById('json-success');
+      const jsonInput = document.getElementById('campaign-json');
+      const jsonError = document.getElementById('json-error');
       const runButton = document.getElementById('run-campaign-btn');
-
-      const value = textarea.value.trim();
       
-      if (!value) {
-        errorDiv.classList.add('hidden');
-        successDiv.classList.add('hidden');
-        runButton.disabled = true;
-        return;
-      }
-
       try {
-        const parsed = JSON.parse(value);
-        
-        // Validate required fields
-        const requiredFields = ['campaign_name', 'target', 'output_preferences'];
-        const missingFields = requiredFields.filter(field => !parsed[field]);
-        
-        if (missingFields.length > 0) {
-          throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
-        }
-
-        errorDiv.classList.add('hidden');
-        successDiv.classList.remove('hidden');
+        JSON.parse(jsonInput.value);
+        jsonError.classList.add('hidden');
         runButton.disabled = false;
       } catch (e) {
-        errorDiv.textContent = `Invalid JSON: ${e.message}`;
-        errorDiv.classList.remove('hidden');
-        successDiv.classList.add('hidden');
+        jsonError.classList.remove('hidden');
         runButton.disabled = true;
       }
-    }
-
-    function handleFileUpload(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        document.getElementById('campaign-json').value = e.target.result;
-        validateJSON();
-      };
-      reader.readAsText(file);
     }
 
     function loadSampleJSON() {
-      document.getElementById('campaign-json').value = JSON.stringify(SAMPLE_CAMPAIGN, null, 2);
+      const sample = {
+        campaign_name: "Tech Startups NY",
+        industry: "Technology",
+        location: "New York, NY",
+        company_size: "1-50",
+        scraping_sources: [
+          "linkedin",
+          "company_website"
+        ]
+      };
+      document.getElementById('campaign-json').value = JSON.stringify(sample, null, 2);
       validateJSON();
-      showToast('Sample JSON loaded', 'success');
     }
 
     async function runCampaign() {
-      if (N8N_WEBHOOK_URL === 'YOUR_N8N_WEBHOOK_URL_HERE' && !state.demoMode) {
-        showToast('Please configure N8N_WEBHOOK_URL in the code before running campaigns', 'error');
-        return;
-      }
-
-      const jsonValue = document.getElementById('campaign-json').value;
+      const jsonInput = document.getElementById('campaign-json').value;
       const pipeline = document.getElementById('pipeline-select').value;
-
+      
       try {
-        const campaignData = JSON.parse(jsonValue);
+        const campaignData = JSON.parse(jsonInput);
+        
+        // Clear any previous campaign status/results
+        if (state.timerInterval) clearInterval(state.timerInterval);
+        if (state.pollingInterval) clearInterval(state.pollingInterval);
+        document.getElementById('elapsed-time').textContent = '0:00';
+        document.getElementById('progress-percentage').textContent = '0';
+        document.getElementById('progress-bar').style.width = '0%';
+        document.getElementById('status-section').classList.remove('hidden');
+        document.getElementById('results-section').classList.add('hidden');
         
         // Save to history
         state.lastCampaignData = { ...campaignData, pipeline };
@@ -930,7 +662,7 @@ That's it! The dashboard will automatically use your configured webhook URL.
           const result = await response.json();
           console.log('Raw webhook response:', JSON.stringify(result, null, 2));
           
-          // Extract leads from nested structure: [0].output[0].content[0].text.leads
+          // Extract leads from the webhook response
           const extractedData = extractResponseData(result);
 
           if (!extractedData) {
@@ -940,15 +672,9 @@ That's it! The dashboard will automatically use your configured webhook URL.
 
           console.log('✓ Extracted leads data:', extractedData.length, 'items');
 
-          // Immediately render the dashboard with the extracted data
-          if (typeof window.renderDashboardWithData === 'function') {
-            console.log('Rendering dashboard immediately...');
-            window.renderDashboardWithData(extractedData);
-          } else {
-            console.warn('renderDashboardWithData function not available');
-          }
-
-          startCampaignTracking(generateCampaignId()); // Webhook response already rendered
+          // Process and complete the campaign immediately upon receiving the final data
+          const processedResults = processLeadsData(extractedData);
+          completeCampaign(processedResults);
         }
 
         showToast('Campaign started successfully!', 'success');
@@ -973,10 +699,8 @@ That's it! The dashboard will automatically use your configured webhook URL.
       // Start elapsed time counter
       state.timerInterval = setInterval(updateElapsedTime, 1000);
 
-      // Start polling for status updates
-      if (!state.demoMode) {
-        state.pollingInterval = setInterval(() => pollCampaignStatus(campaignId), 5000);
-      }
+      // NOTE: Polling is removed as per user request. The webhook is expected to return the final result.
+      // The status section will remain "Running" until the webhook returns and calls completeCampaign().
     }
 
     function updateElapsedTime() {
@@ -990,23 +714,7 @@ That's it! The dashboard will automatically use your configured webhook URL.
         `${minutes}:${seconds.toString().padStart(2, '0')}`;
     }
 
-    async function pollCampaignStatus(campaignId) {
-      try {
-        const response = await fetch(`${N8N_WEBHOOK_URL}/status/${campaignId}`);
-        if (!response.ok) return;
-
-        const status = await response.json();
-        updateStatus(status.status, status.progress, status.currentStep);
-
-        if (status.status === 'completed') {
-          completeCampaign(status.results);
-        } else if (status.status === 'error') {
-          handleCampaignError(status.error);
-        }
-      } catch (e) {
-        console.error('Polling error:', e);
-      }
-    }
+    // REMOVED: async function pollCampaignStatus(campaignId) { ... }
 
     function updateStatus(status, progress, message) {
       const indicator = document.getElementById('status-indicator');
@@ -1044,41 +752,18 @@ That's it! The dashboard will automatically use your configured webhook URL.
       const campaignId = generateCampaignId();
       startCampaignTracking(campaignId);
 
-      const steps = [
-        { progress: 10, message: STATUS_MESSAGES.initializing, delay: 1000 },
-        { progress: 25, message: STATUS_MESSAGES.scraping_linkedin, delay: 3000 },
-        { progress: 45, message: STATUS_MESSAGES.enriching, delay: 3000 },
-        { progress: 65, message: STATUS_MESSAGES.scoring, delay: 2000 },
-        { progress: 80, message: STATUS_MESSAGES.generating_reports, delay: 2000 },
-        { progress: 95, message: STATUS_MESSAGES.preparing_emails, delay: 1500 },
-        { progress: 100, message: STATUS_MESSAGES.completed, delay: 1000 }
-      ];
-
-      let currentStep = 0;
-      
-      function executeStep() {
-        if (currentStep >= steps.length) {
-          // Campaign complete - extract and process mock data
-          const extractedData = extractResponseData(MOCK_LEADS_RESPONSE);
-          const mockResults = processLeadsData(extractedData);
-          completeCampaign(mockResults);
-          return;
-        }
-
-        const step = steps[currentStep];
-        updateStatus('running', step.progress, step.message);
-        
-        currentStep++;
-        setTimeout(executeStep, step.delay);
-      }
-
-      executeStep();
+      // Simulate a delay before the mock response is received
+      setTimeout(() => {
+        const extractedData = extractResponseData(MOCK_LEADS_RESPONSE);
+        const processedResults = processLeadsData(extractedData);
+        completeCampaign(processedResults);
+      }, 3000); // 3 second delay to simulate webhook processing time
     }
 
     function completeCampaign(results) {
       // Stop timers and polling
       if (state.timerInterval) clearInterval(state.timerInterval);
-      if (state.pollingInterval) clearInterval(state.pollingInterval);
+      // if (state.pollingInterval) clearInterval(state.pollingInterval); // Polling is already removed
 
       updateStatus('completed', 100, STATUS_MESSAGES.completed);
       
@@ -1113,6 +798,7 @@ That's it! The dashboard will automatically use your configured webhook URL.
       
       // Show results section
       document.getElementById('results-section').classList.remove('hidden');
+      document.getElementById('status-section').classList.add('hidden'); // Hide status section
 
       // Update counts
       const hotCount = results.hot_leads?.count || 0;
@@ -1125,6 +811,11 @@ That's it! The dashboard will automatically use your configured webhook URL.
       document.getElementById('hot-leads-summary').textContent = hotCount;
       document.getElementById('other-leads-summary').textContent = otherCount;
       document.getElementById('campaign-duration').textContent = `${duration}m`;
+      document.getElementById('results-campaign-id').textContent = state.currentCampaignId;
+
+      // Render tables
+      renderLeadsTable('hot-leads-table', results.hot_leads.leads);
+      renderLeadsTable('other-leads-table', results.other_leads.leads);
 
       // Scroll to results
       document.getElementById('results-section').scrollIntoView({ behavior: 'smooth' });
@@ -1132,7 +823,7 @@ That's it! The dashboard will automatically use your configured webhook URL.
 
     function handleCampaignError(error) {
       if (state.timerInterval) clearInterval(state.timerInterval);
-      if (state.pollingInterval) clearInterval(state.pollingInterval);
+      // if (state.pollingInterval) clearInterval(state.pollingInterval); // Polling is already removed
 
       updateStatus('error', 0, `Error: ${error}`);
       showToast(`Campaign failed: ${error}`, 'error');
@@ -1150,7 +841,7 @@ That's it! The dashboard will automatically use your configured webhook URL.
           return rawData;
         }
 
-        // Format 2: {summary: {...}, rows: [...]} from your n8n webhook
+        // Format 2: {summary: {...}, rows: [...]} from your n8n webhook (THIS IS THE CORRECT FORMAT)
         if (rawData && typeof rawData === 'object' && Array.isArray(rawData.rows)) {
           console.log('✓ Webhook format with rows:', rawData.rows.length, 'items');
           return rawData.rows;
@@ -1162,7 +853,7 @@ That's it! The dashboard will automatically use your configured webhook URL.
           return rawData.rows;
         }
 
-        // Format 4: Nested AI response structure
+        // Format 4: Nested AI response structure (Original, now less likely)
         if (Array.isArray(rawData) && rawData.length > 0) {
           const firstItem = rawData[0];
 
@@ -1191,6 +882,7 @@ That's it! The dashboard will automatically use your configured webhook URL.
         return null;
       }
     }
+
     function processLeadsData(leads) {
       console.log('Processing leads data:', leads);
       
@@ -1204,15 +896,15 @@ That's it! The dashboard will automatically use your configured webhook URL.
         lead.classification && lead.classification.toLowerCase() === 'hot'
       );
       
-      const coldLeads = leads.filter(lead => 
+      const otherLeads = leads.filter(lead => 
         !lead.classification || lead.classification.toLowerCase() !== 'hot'
       );
 
-      console.log(`Processed: ${hotLeads.length} hot leads, ${coldLeads.length} cold leads`);
+      console.log(`Processed: ${hotLeads.length} hot leads, ${otherLeads.length} other leads`);
 
       // Store leads in state for Excel export
       state.hotLeads = hotLeads;
-      state.coldLeads = coldLeads;
+      state.coldLeads = otherLeads; // Renamed to coldLeads for consistency with excel export function
 
       return {
         hot_leads: {
@@ -1222,13 +914,57 @@ That's it! The dashboard will automatically use your configured webhook URL.
           pdf_report_url: "https://example.com/reports/hot-leads.pdf"
         },
         other_leads: {
-          count: coldLeads.length,
-          leads: coldLeads,
+          count: otherLeads.length,
+          leads: otherLeads,
           email_template_populated: true
         },
         total_leads: leads.length,
         all_leads: leads
       };
+    }
+
+    function renderLeadsTable(containerId, leads) {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+
+      if (leads.length === 0) {
+        container.innerHTML = `<p class="text-sm text-gray-500">No leads found for this category.</p>`;
+        return;
+      }
+
+      const tableHtml = `
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Classification</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Relevance Score</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Keywords</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Link</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              ${leads.map(lead => `
+                <tr>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${lead.name || 'N/A'}</td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${lead.classification && lead.classification.toLowerCase() === 'hot' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}">
+                      ${lead.classification || 'Other'}
+                    </span>
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${lead.relevance_score || 'N/A'}</td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${(lead.relevance_keywords || []).join(', ') || 'N/A'}</td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    ${lead.url ? `<a href="${lead.url}" target="_blank" class="text-indigo-600 hover:text-indigo-900">View</a>` : 'N/A'}
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+      container.innerHTML = tableHtml;
     }
 
     function downloadReport(format) {
@@ -1271,11 +1007,13 @@ That's it! The dashboard will automatically use your configured webhook URL.
         if (hotLeads.length > 0) {
           const hotData = hotLeads.map(lead => ({
             'Lead #': lead.lead_number,
-            'Business Name': lead.business_name,
+            'Name': lead.name,
             'Classification': lead.classification,
-            'Employees': lead.lead_data.employees,
-            'Social Followers': lead.lead_data.social_media_followers,
-            'Revenue': lead.lead_data.revenue
+            'URL': lead.url,
+            'Reach': lead.reach,
+            'Engagement Total': lead.engagement_total,
+            'Relevance Score': lead.relevance_score,
+            'Relevance Keywords': (lead.relevance_keywords || []).join(', ')
           }));
           const hotSheet = XLSX.utils.json_to_sheet(hotData);
           XLSX.utils.book_append_sheet(wb, hotSheet, 'Hot Leads');
@@ -1285,14 +1023,16 @@ That's it! The dashboard will automatically use your configured webhook URL.
         if (coldLeads.length > 0) {
           const coldData = coldLeads.map(lead => ({
             'Lead #': lead.lead_number,
-            'Business Name': lead.business_name,
-            'Classification': lead.classification || 'Cold',
-            'Employees': lead.lead_data.employees,
-            'Social Followers': lead.lead_data.social_media_followers,
-            'Revenue': lead.lead_data.revenue
+            'Name': lead.name,
+            'Classification': lead.classification || 'Other',
+            'URL': lead.url,
+            'Reach': lead.reach,
+            'Engagement Total': lead.engagement_total,
+            'Relevance Score': lead.relevance_score,
+            'Relevance Keywords': (lead.relevance_keywords || []).join(', ')
           }));
           const coldSheet = XLSX.utils.json_to_sheet(coldData);
-          XLSX.utils.book_append_sheet(wb, coldSheet, 'Cold Leads');
+          XLSX.utils.book_append_sheet(wb, coldSheet, 'Other Leads');
         }
         
         // Summary sheet
@@ -1302,7 +1042,7 @@ That's it! The dashboard will automatically use your configured webhook URL.
         const summaryData = [
           { Metric: 'Total Leads', Value: totalLeads },
           { Metric: 'Hot Leads', Value: hotLeads.length },
-          { Metric: 'Cold Leads', Value: coldLeads.length },
+          { Metric: 'Other Leads', Value: coldLeads.length },
           { Metric: 'Conversion Rate', Value: `${conversionRate}%` }
         ];
         const summarySheet = XLSX.utils.json_to_sheet(summaryData);
@@ -1355,7 +1095,6 @@ That's it! The dashboard will automatically use your configured webhook URL.
         <div class="mb-4">
           <h4 class="font-semibold text-gray-700 mb-2">Subject:</h4>
           <p class="text-gray-900">${template.subject.replace('{{business_name}}', sampleData.business_name)}</p>
-        <div id="hot-leads-table" class="mt-4"></div>
         </div>
         <div class="border-t pt-4">
           <h4 class="font-semibold text-gray-700 mb-2">Email Body:</h4>
@@ -1421,10 +1160,11 @@ That's it! The dashboard will automatically use your configured webhook URL.
       // Reset state
       state.currentCampaignId = null;
       state.campaignStartTime = null;
-      state.resultsData = null;
+      if (state.timerInterval) clearInterval(state.timerInterval);
+      // if (state.pollingInterval) clearInterval(state.pollingInterval); // Polling is already removed
 
       // Hide sections
-      // Status section hidden - no polling needed
+      document.getElementById('status-section').classList.add('hidden');
       document.getElementById('results-section').classList.add('hidden');
 
       // Clear form
@@ -1439,7 +1179,7 @@ That's it! The dashboard will automatically use your configured webhook URL.
 
     function clearForm() {
       document.getElementById('campaign-json').value = '';
-      document.getElementById('json-file-upload').value = '';
+      document.getElementById('campaign-file-upload').value = '';
       validateJSON();
       showToast('Form cleared', 'info');
     }
@@ -1679,388 +1419,148 @@ That's it! The dashboard will automatically use your configured webhook URL.
         await new Promise(resolve => setTimeout(resolve, step.delay));
       }
 
-      // Simulate conversion result
-      const mockResult = {
-        success: true,
-        campaign_json: {
-          campaign_name: "Tech Startups NYC",
-          target: {
-            industry: "Technology",
-            location: "New York, NY",
-            company_size: "1-50"
-          },
-          scraping_sources: ["linkedin", "company_website"],
-          enrichment: {
-            enabled: true,
-            ai_scoring: true
-          },
-          output_preferences: {
-            hot_lead_threshold: 8,
-            report_format: ["word", "pdf"],
-            email_language: "english"
-          }
-        },
-        conversion_status: "completed",
-        file_analysis: {
-          rows_processed: 150,
-          data_quality: "high",
-          confidence: 95
-        }
-      };
+      // Simulate detected data
+      document.getElementById('detected-campaign-name').textContent = 'Simulated Campaign';
+      document.getElementById('detected-industry').textContent = 'Software';
+      document.getElementById('detected-location').textContent = 'San Francisco';
+      document.getElementById('detected-rows').textContent = '50';
+      document.getElementById('detected-data').classList.remove('hidden');
 
-      displayConversionResults(mockResult);
+      // Simulate converted JSON
+      const convertedJSON = JSON.stringify({
+        campaign_name: "Simulated Campaign",
+        industry: "Software",
+        location: "San Francisco",
+        company_size: "51-200",
+        scraping_sources: ["linkedin", "company_website"]
+      }, null, 2);
+      state.convertedJSON = convertedJSON;
+
+      // Show results
+      document.getElementById('conversion-results').classList.remove('hidden');
+      document.getElementById('use-conversion-btn').disabled = false;
+      document.getElementById('convert-file-btn').disabled = false;
     }
 
     async function callConversionWebhook(fileType) {
-      if (N8N_WEBHOOK_URL === 'YOUR_N8N_WEBHOOK_URL_HERE') {
-        showToast('Please configure N8N_WEBHOOK_URL in the code', 'error');
-        document.getElementById('conversion-status').classList.add('hidden');
-        document.getElementById('convert-file-btn').disabled = false;
-        return;
-      }
+      const formData = new FormData();
+      formData.append('file', state.uploadedFile);
+      formData.append('fileType', fileType);
 
       try {
-        const requestBody = {
-          file_name: state.uploadedFile.name,
-          file_type: fileType,
-          file_data: state.fileData,
-          timestamp: new Date().toISOString()
-        };
+        document.getElementById('conversion-status-text').textContent = '📤 Uploading file...';
+        document.getElementById('conversion-progress-bar').style.width = '20%';
 
-        const response = await fetch(N8N_WEBHOOK_URL + '/convert-file', {
+        const response = await fetch(`${N8N_WEBHOOK_URL}/convert-file`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(requestBody),
-          signal: AbortSignal.timeout(60000) // 60 second timeout
+          body: formData
         });
 
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
 
+        document.getElementById('conversion-status-text').textContent = '🔄 Analyzing with AI...';
+        document.getElementById('conversion-progress-bar').style.width = '50%';
+
         const result = await response.json();
-        displayConversionResults(result);
+
+        document.getElementById('conversion-status-text').textContent = '⚙️ Converting to campaign format...';
+        document.getElementById('conversion-progress-bar').style.width = '80%';
+
+        // Assuming the result contains the converted JSON and detected data
+        const convertedJSON = result.converted_json;
+        const detectedData = result.detected_data;
+
+        if (!convertedJSON) {
+          throw new Error('Conversion failed: No JSON returned.');
+        }
+
+        state.convertedJSON = convertedJSON;
+
+        // Update detected data display
+        document.getElementById('detected-campaign-name').textContent = detectedData.campaign_name || '-';
+        document.getElementById('detected-industry').textContent = detectedData.industry || '-';
+        document.getElementById('detected-location').textContent = detectedData.location || '-';
+        document.getElementById('detected-rows').textContent = detectedData.rows || '-';
+        document.getElementById('detected-data').classList.remove('hidden');
+
+        document.getElementById('conversion-status-text').textContent = '✅ Conversion completed!';
+        document.getElementById('conversion-progress-bar').style.width = '100%';
+
+        // Show results
+        document.getElementById('conversion-results').classList.remove('hidden');
+        document.getElementById('use-conversion-btn').disabled = false;
+        document.getElementById('convert-file-btn').disabled = false;
+        showToast('File converted successfully!', 'success');
 
       } catch (e) {
-        showToast(`Conversion failed: ${e.message}`, 'error');
-        document.getElementById('conversion-status').classList.add('hidden');
+        document.getElementById('conversion-status-text').textContent = '❌ Conversion failed!';
+        document.getElementById('conversion-progress-bar').style.width = '0%';
         document.getElementById('convert-file-btn').disabled = false;
+        showToast(`Error converting file: ${e.message}`, 'error');
+        console.error('Conversion error:', e);
       }
     }
 
-    function displayConversionResults(result) {
-      if (!result.success) {
-        showToast('Conversion failed', 'error');
-        document.getElementById('conversion-status').classList.add('hidden');
-        document.getElementById('convert-file-btn').disabled = false;
-        return;
+    function useConvertedJSON() {
+      if (state.convertedJSON) {
+        document.getElementById('campaign-json').value = state.convertedJSON;
+        validateJSON();
+        document.getElementById('file-analysis-section').classList.add('hidden');
+        document.getElementById('campaign-file-upload').value = '';
+        showToast('Converted JSON loaded into configuration', 'success');
+      } else {
+        showToast('No converted JSON available', 'error');
       }
-
-      state.convertedCampaignData = result.campaign_json;
-
-      // Hide conversion status, show results
-      document.getElementById('conversion-status').classList.add('hidden');
-      document.getElementById('conversion-results').classList.remove('hidden');
-      document.getElementById('detected-data').classList.remove('hidden');
-
-      // Display detected data
-      if (result.campaign_json) {
-        document.getElementById('detected-campaign-name').textContent = 
-          result.campaign_json.campaign_name || '-';
-        document.getElementById('detected-industry').textContent = 
-          result.campaign_json.target?.industry || '-';
-        document.getElementById('detected-location').textContent = 
-          result.campaign_json.target?.location || '-';
-      }
-
-      // Display file analysis
-      if (result.file_analysis) {
-        document.getElementById('data-quality').textContent = 
-          result.file_analysis.data_quality || 'Unknown';
-        document.getElementById('confidence-score').textContent = 
-          (result.file_analysis.confidence || 0) + '%';
-        document.getElementById('rows-processed').textContent = 
-          result.file_analysis.rows_processed || 0;
-        document.getElementById('detected-rows').textContent = 
-          result.file_analysis.rows_processed || '-';
-      }
-
-      // Enable use conversion button
-      document.getElementById('use-conversion-btn').disabled = false;
-      document.getElementById('convert-file-btn').disabled = false;
-
-      showToast('File converted successfully!', 'success');
     }
 
-    function useConvertedData() {
-      if (!state.convertedCampaignData) {
-        showToast('No converted data available', 'error');
-        return;
-      }
-
-      // Populate JSON textarea with converted data
-      document.getElementById('campaign-json').value = 
-        JSON.stringify(state.convertedCampaignData, null, 2);
-      
-      // Validate the JSON
+    // Initial setup
+    document.addEventListener('DOMContentLoaded', () => {
       validateJSON();
+      loadSampleJSON();
+      
+      // Drag and drop functionality
+      const dropZone = document.getElementById('file-drop-zone');
+      const fileInput = document.getElementById('campaign-file-upload');
 
-      // Scroll to campaign configuration section
-      document.querySelector('#campaign-json').scrollIntoView({ 
-        behavior: 'smooth', 
-        block: 'center' 
+      dropZone.addEventListener('click', () => fileInput.click());
+      
+      ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
       });
 
-      showToast('Converted data loaded into campaign configuration', 'success');
-    }
+      function preventDefaults (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
 
-    function clearFileUpload() {
-      state.uploadedFile = null;
-      state.fileData = null;
-      state.convertedCampaignData = null;
-      
-      document.getElementById('campaign-file-upload').value = '';
-      document.getElementById('file-analysis-section').classList.add('hidden');
-      document.getElementById('convert-file-btn').disabled = false;
-      
-      showToast('File upload cleared', 'info');
-    }
+      ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, highlight, false);
+      });
 
-    // Close modal on escape key
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        closeEmailModal();
+      ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, unhighlight, false);
+      });
+
+      function highlight() {
+        dropZone.classList.add('border-blue-600', 'bg-blue-50');
+      }
+
+      function unhighlight() {
+        dropZone.classList.remove('border-blue-600', 'bg-blue-50');
+      }
+
+      dropZone.addEventListener('drop', handleDrop, false);
+
+      function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        
+        fileInput.files = files;
+        handleCampaignFileUpload({ target: fileInput });
       }
     });
   </script>
-
-  
-  <!-- Universal Lead Data Adapter (Robust, Async-Ready) -->
-  <script>
-    // Global data store
-    window.LEAD_DATA = null;
-    window.IS_DATA_LOADED = false;
-
-    /**
-     * Main rendering function - works with any data structure
-     */
-    function renderDashboardWithData(rowsRaw) {
-      try {
-        const rows = Array.isArray(rowsRaw) ? rowsRaw : [];
-
-        if (!rows.length) {
-          console.warn('No rows to render');
-          return;
-        }
-
-        // Normalize keys: strip spaces, lowercase, remove special chars
-        const toKey = k => String(k || '')
-          .trim()
-          .replace(/\s+/g, '_')
-          .replace(/[^\w]/g, '')
-          .toLowerCase();
-
-        const mapRow = (r) => {
-          const x = {};
-          for (const [k,v] of Object.entries(r)) x[toKey(k)] = v;
-          // Canonical fields with robust fallbacks
-          return {
-            batch_id: x.batchid ?? x.batch_id ?? null,
-            pipeline: x.pipeline ?? null,
-            lead_number: Number(x.leadnumber ?? x.lead_number ?? x.leadid) || null,
-            lead_id: x.leadid ?? null,
-            type: x.type ?? null,
-            name: x.name ?? null,
-            handle: x.handle ?? null,
-            url: x.url ?? x.website ?? null,
-            classification: x.classification ?? null,
-            reach: Number(x.reach ?? 0) || 0,
-            engagement_total: Number(x.engagementtotal ?? x.engagement_total ?? 0) || 0,
-            relevance_score: Number(x.relevancescore ?? 0) || 0,
-            relevance_keywords: Array.isArray(x.relevancekeywords)
-              ? x.relevancekeywords
-              : String(x.relevancekeywords || '').split(',').map(s=>s.trim()).filter(Boolean),
-          };
-        };
-
-        const data = rows.map(mapRow);
-
-        // Metrics
-        const total = data.length;
-        const hot = data.filter(d => d.classification === 'Hot').length;
-        const cold = data.filter(d => d.classification === 'Cold').length;
-
-        // Update counts
-        const setText = (sel, val) => {
-          const el = document.querySelector(sel);
-          if (el) {
-            el.textContent = String(val);
-            el.style.opacity = '1'; // Ensure visible
-          }
-        };
-
-        setText('#total-leads-count', total);
-        setText('#hot-leads-count', hot);
-        setText('#other-leads-count', cold);
-        setText('#rows-processed', total);
-
-        // Render tables with proper styling
-        const makeTable = (arr) => {
-          if (!arr.length) {
-            const empty = document.createElement('div');
-            empty.className = 'p-4 text-center text-gray-500';
-            empty.textContent = 'No leads to display';
-            return empty;
-          }
-
-          const cols = ['lead_number','type','name','handle','url','classification','reach','engagement_total','relevance_score'];
-          const wrap = document.createElement('div');
-          wrap.className = 'overflow-x-auto';
-
-          const table = document.createElement('table');
-          table.className = 'min-w-full divide-y divide-gray-200 mt-3 border border-gray-200';
-
-          // Header
-          const thead = document.createElement('thead');
-          thead.className = 'bg-indigo-50';
-          const trh = document.createElement('tr');
-          cols.forEach(c => {
-            const th = document.createElement('th');
-            th.className = 'px-4 py-3 text-left text-xs font-semibold text-indigo-900 uppercase tracking-wider';
-            th.textContent = c.replace(/_/g,' ');
-            trh.appendChild(th);
-          });
-          thead.appendChild(trh);
-          table.appendChild(thead);
-
-          // Body
-          const tbody = document.createElement('tbody');
-          tbody.className = 'bg-white divide-y divide-gray-200';
-
-          arr.forEach((r, idx) => {
-            const tr = document.createElement('tr');
-            tr.className = idx % 2 === 0 ? 'hover:bg-gray-50' : 'bg-gray-50 hover:bg-gray-100';
-
-            cols.forEach(c => {
-              const td = document.createElement('td');
-              td.className = 'px-4 py-3 text-sm text-gray-900';
-
-              let val = r[c];
-
-              if (c === 'url' && val) {
-                const a = document.createElement('a');
-                a.href = val;
-                a.textContent = 'View';
-                a.target = '_blank';
-                a.rel = 'noopener noreferrer';
-                a.className = 'text-indigo-600 hover:text-indigo-900 font-medium';
-                td.appendChild(a);
-              } else if (c === 'classification') {
-                td.textContent = val || '-';
-                td.className += ' font-semibold ' + (val === 'Hot' ? 'text-red-600' : val === 'Cold' ? 'text-blue-600' : 'text-gray-600');
-              } else if (Array.isArray(val)) {
-                td.textContent = val.slice(0,3).join(', ') + (val.length > 3 ? '...' : '');
-              } else {
-                td.textContent = val == null || val === '' ? '-' : String(val);
-              }
-
-              tr.appendChild(td);
-            });
-            tbody.appendChild(tr);
-          });
-
-          table.appendChild(tbody);
-          wrap.appendChild(table);
-          return wrap;
-        };
-
-        // Mount tables
-        const hotData = data.filter(d => d.classification === 'Hot');
-        const coldData = data.filter(d => d.classification === 'Cold');
-
-        const mount = (sel, content) => {
-          const el = document.querySelector(sel);
-          if (el) {
-            el.innerHTML = '';
-            el.appendChild(content);
-          } else {
-            console.warn('Container not found:', sel);
-          }
-        };
-
-        mount('#hot-leads-table', makeTable(hotData));
-        mount('#other-leads-table', makeTable(coldData));
-
-        window.IS_DATA_LOADED = true;
-        console.log('✅ Dashboard updated successfully:', { total, hot, cold });
-
-      } catch (err) {
-        console.error('❌ Error rendering dashboard:', err);
-        alert('Error rendering dashboard: ' + err.message);
-      }
-    }
-
-    /**
-     * Auto-detect and render data when available
-     * Handles multiple sources: global var, query param, webhook
-     */
-    function checkAndRenderData() {
-      // Priority 1: Check if data was set globally
-      if (window.LEAD_DATA && !window.IS_DATA_LOADED) {
-        console.log('Rendering from window.LEAD_DATA');
-        renderDashboardWithData(window.LEAD_DATA);
-        return;
-      }
-
-      // Priority 2: Check query parameters
-      const params = new URLSearchParams(window.location.search);
-      const dataParam = params.get('data');
-      if (dataParam && !window.IS_DATA_LOADED) {
-        try {
-          const parsedData = JSON.parse(decodeURIComponent(dataParam));
-          console.log('Rendering from query param');
-          renderDashboardWithData(parsedData);
-          return;
-        } catch(e) {
-          console.warn('Invalid query param data:', e);
-        }
-      }
-    }
-
-    // Check on page load
-    window.addEventListener('DOMContentLoaded', () => {
-      console.log('DOM Content Loaded');
-      setTimeout(checkAndRenderData, 100); // Small delay to ensure all scripts loaded
-    });
-
-    // Also check when window loads (for webhooks that arrive late)
-    window.addEventListener('load', () => {
-      console.log('Window fully loaded');
-      if (!window.IS_DATA_LOADED) {
-        setTimeout(checkAndRenderData, 200);
-      }
-    });
-
-    // Auto-render if data is set after page load
-    const originalDefineProperty = Object.defineProperty;
-    Object.defineProperty(window, 'LEAD_DATA', {
-      get: function() { return this._LEAD_DATA; },
-      set: function(val) {
-        this._LEAD_DATA = val;
-        if (val && !window.IS_DATA_LOADED) {
-          console.log('Data set on window, auto-rendering...');
-          setTimeout(() => renderDashboardWithData(val), 50);
-        }
-      }
-    });
-
-    // Expose globally for manual calls
-    window.renderDashboardWithData = renderDashboardWithData;
-    window.checkAndRenderData = checkAndRenderData;
-  </script>
-
-
 </body>
 </html>
