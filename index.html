@@ -567,7 +567,7 @@ LEAD GENERATION DASHBOARD
         if (state.demoMode) {
           simulateCampaignExecution(pipeline);
         } else {
-          // Real Execution
+          // Real Execution with Stream Reading
           const response = await fetch(N8N_WEBHOOK_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -580,27 +580,105 @@ LEAD GENERATION DASHBOARD
 
           if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
-          // NOTE: We are not streaming here because fetch doesn't support it easily without ReadableStreams
-          // But we will simulate the "steps" visually while waiting or if the webhook returns intermediate messages
-          // Since n8n usually returns one big JSON at the end unless using SSE, we will simulate progress
-          // However, the prompt asks to "modify in the progress... use texts that come from webhooks"
-          // Since we can't get realtime updates from a single POST unless it's a stream, 
-          // we will assume the user wants us to handle the *Final Response* data structure 
-          // OR this is a misunderstanding of how standard webhooks work (response comes all at once).
-          // To satisfy the requirement "progress texts come from webhooks", we would need SSE.
-          // Assuming standard behavior: We will simulate the specific texts requested during the "waiting" phase.
-          
-          simulateWebhookProgressSteps(); // Visual trickery while waiting for promise
+          // Read response stream
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
 
-          const result = await response.json();
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            const chunk = decoder.decode(value, { stream: true });
+            buffer += chunk;
+            
+            // Check for specific status messages in the chunk
+            // We check the chunk (or tail of buffer) for keywords
+            
+            if (buffer.includes("Getting Leads...")) {
+                // Use a flag to prevent repeating the same log if stream sends it in small parts
+                // For simplicity here we just check existence in buffer and assume order
+                // In a robust real implementation we would consume lines.
+                // Here we just update progress based on keywords present.
+                // To make it 'feel' live, we can check if we haven't logged it yet
+                if(!state.loggedGettingLeads) {
+                    updateProgress(20, "Getting Leads...🔥");
+                    logToTerminal("Getting Leads...🔥");
+                    state.loggedGettingLeads = true;
+                }
+            }
+            
+            if (buffer.includes("Ranking Hot Leads...")) {
+                 if(!state.loggedRanking) {
+                    updateProgress(50, "Ranking Hot Leads...🔥🔥🔥");
+                    logToTerminal("Ranking Hot Leads...🔥🔥🔥");
+                    state.loggedRanking = true;
+                 }
+            }
+            
+            if (buffer.includes("Saving Leads")) {
+                 // Try to extract the iteration number
+                 // Regex for Saving Leads...🔥🔥🔥(1)
+                 const match = buffer.match(/Saving Leads.*\((\d+)\)/);
+                 let count = match ? match[1] : '';
+                 let msg = `Saving Leads in Google sheet...🔥🔥🔥${count ? `(${count})` : ''}`;
+                 
+                 // Only log if changed or just log anyway as it updates count
+                 // We'll just update the status text
+                 updateProgress(80, msg);
+                 // Optional: log only once or every time? Let's just log the last one
+                 // logToTerminal(msg); 
+            }
+          }
           
-          // Process result
-          processResults(result, pipeline);
+          // Stream finished. The buffer now contains "Text...Text...JSON"
+          // We need to extract the final JSON payload.
+          // It likely starts with '[' or '{' after the text messages.
+          
+          // Find the last occurrence of a valid JSON start char?
+          // Or just find the first '[' or '{' that allows valid parsing?
+          // The text messages don't contain raw JSON usually.
+          
+          let jsonStartIndex = buffer.indexOf('[');
+          // If not found or if there is an object '{' that appears before '[' (e.g. wrapper)
+          // But user said it returns array mostly. Let's be safe.
+          let objStartIndex = buffer.indexOf('{');
+          
+          let startIndex = -1;
+          if(jsonStartIndex !== -1 && objStartIndex !== -1) {
+              startIndex = Math.min(jsonStartIndex, objStartIndex);
+          } else if (jsonStartIndex !== -1) {
+              startIndex = jsonStartIndex;
+          } else {
+              startIndex = objStartIndex;
+          }
+
+          if (startIndex !== -1) {
+              const jsonString = buffer.substring(startIndex);
+              try {
+                  const result = JSON.parse(jsonString);
+                  // Process result
+                  processResults(result, pipeline);
+              } catch (e) {
+                  console.error("JSON Parse Error on extracted string", e);
+                  // If simple parse fails, maybe the stream contains multiple JSON objects?
+                  // Or maybe there's trailing text?
+                  // Let's try to find the *last* complete JSON if it's ndjson-like
+                  // But assuming standard n8n response behavior (one final JSON)
+                  throw new Error("Failed to parse final campaign data from stream.");
+              }
+          } else {
+              throw new Error("No JSON data found in response stream.");
+          }
+          
+          // Reset state flags for next run
+          state.loggedGettingLeads = false;
+          state.loggedRanking = false;
         }
 
       } catch (e) {
         logToTerminal('Error: ' + e.message, 'text-red-500');
-        showToast('Campaign failed to start', 'error');
+        showToast('Campaign failed: ' + e.message, 'error');
       }
     }
     
