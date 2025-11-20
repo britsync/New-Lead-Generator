@@ -2,7 +2,21 @@
 <html lang="en">
 <!--
 ========================================
-LEAD GENERATION DASHBOARD
+LEAD GENERATION DASHBOARD - SETUP GUIDE
+========================================
+
+Before using this dashboard, you MUST configure your n8n webhook URL:
+
+1. Open this file (index.html) in a text editor (VS Code, Notepad++, Sublime Text, etc.)
+2. Scroll down to the JavaScript section and find the "CONFIGURATION SECTION"
+3. Replace 'YOUR_N8N_WEBHOOK_URL_HERE' with your actual n8n webhook URL
+4. Save the file
+5. Upload to GitHub Pages or your web hosting
+
+Example webhook URL:
+https://your-n8n-instance.com/webhook/lead-campaign
+
+That's it! The dashboard will automatically use your configured webhook URL.
 ========================================
 -->
 <head>
@@ -11,8 +25,6 @@ LEAD GENERATION DASHBOARD
   <title>Lead Generation Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  <!-- Font Awesome for Icons -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     @keyframes pulse {
       0%, 100% { opacity: 1; }
@@ -40,24 +52,9 @@ LEAD GENERATION DASHBOARD
     .modal-backdrop {
       background: rgba(0, 0, 0, 0.5);
     }
-    /* Custom scrollbar for code blocks */
-    textarea::-webkit-scrollbar {
-      width: 8px;
-      height: 8px;
-    }
-    textarea::-webkit-scrollbar-track {
-      background: #f1f1f1; 
-    }
-    textarea::-webkit-scrollbar-thumb {
-      background: #888; 
-      border-radius: 4px;
-    }
-    textarea::-webkit-scrollbar-thumb:hover {
-      background: #555; 
-    }
   </style>
 </head>
-<body class="bg-gray-50 min-h-screen font-sans">
+<body class="bg-gray-50 min-h-screen">
   
   <!-- Toast Notifications Container -->
   <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
@@ -66,286 +63,279 @@ LEAD GENERATION DASHBOARD
   <div id="email-modal" class="hidden fixed inset-0 z-50 overflow-y-auto">
     <div class="modal-backdrop fixed inset-0" onclick="closeEmailModal()"></div>
     <div class="flex items-center justify-center min-h-screen p-4">
-      <div class="relative bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
-        <div class="sticky top-0 bg-white border-b border-gray-200 p-4 flex justify-between items-center rounded-t-lg z-10">
-          <h3 class="text-xl font-semibold text-gray-900">Email Template Preview</h3>
-          <button onclick="closeEmailModal()" class="text-gray-400 hover:text-gray-600 focus:outline-none">
-            <i class="fas fa-times text-xl"></i>
+      <div class="relative bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+        <div class="sticky top-0 bg-white border-b border-gray-200 p-4 flex justify-between items-center">
+          <h3 class="text-xl font-semibold text-gray-900">Email Preview</h3>
+          <button onclick="closeEmailModal()" class="text-gray-400 hover:text-gray-600">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
           </button>
         </div>
-        <div class="p-0 flex-1 overflow-y-auto bg-gray-100">
-            <!-- Iframe to isolate styles -->
-            <iframe id="email-preview-iframe" class="w-full h-[600px] border-0"></iframe>
-        </div>
+        <div id="email-preview-content" class="p-6"></div>
       </div>
-    </div>
-  </div>
-
-  <!-- Sending Progress Modal -->
-  <div id="sending-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center">
-    <div class="modal-backdrop fixed inset-0"></div>
-    <div class="bg-white rounded-lg shadow-xl p-8 max-w-md w-full relative z-10 text-center">
-        <div class="mb-6">
-            <div class="mx-auto w-16 h-16 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
-        </div>
-        <h3 class="text-xl font-bold text-gray-900 mb-2" id="sending-title">Initiating Sequence...</h3>
-        <p class="text-gray-600 mb-6" id="sending-status">Connecting to mail server...</p>
-        
-        <!-- Fake Progress Steps -->
-        <div class="space-y-3 text-left text-sm text-gray-500 hidden" id="sending-steps">
-            <div class="flex items-center gap-2" id="step-1">
-                <i class="fas fa-circle-notch fa-spin text-blue-500"></i> <span>Preparing campaign data...</span>
-            </div>
-            <div class="flex items-center gap-2 hidden" id="step-2">
-                <i class="fas fa-circle-notch fa-spin text-blue-500"></i> <span>Handshaking with email provider...</span>
-            </div>
-             <div class="flex items-center gap-2 hidden" id="step-3">
-                <i class="fas fa-circle-notch fa-spin text-blue-500"></i> <span>Dispatching bulk request...</span>
-            </div>
-        </div>
     </div>
   </div>
 
   <!-- Header -->
-  <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-30">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-      <div class="flex items-center gap-3">
-        <div class="bg-blue-600 text-white p-2 rounded-lg">
-            <i class="fas fa-rocket text-xl"></i>
-        </div>
-        <h1 class="text-2xl font-bold text-gray-900 tracking-tight">Lead Gen <span class="text-blue-600">Dashboard</span></h1>
+  <header class="bg-white shadow-sm border-b border-gray-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div class="text-center">
+        <h1 class="text-4xl font-bold text-gray-900 mb-2">Lead Generation Dashboard</h1>
+        <p class="text-lg text-gray-600 italic">Upload your campaign data to trigger lead generation and get detailed reports</p>
       </div>
       
-      <div class="flex items-center gap-4">
-         <div class="flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-full border border-gray-200">
-            <input type="checkbox" id="demo-mode" onchange="toggleDemoMode()" class="rounded text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer">
-            <label for="demo-mode" class="text-sm font-medium text-gray-700 cursor-pointer select-none">Demo Mode</label>
+      <!-- Demo Mode Toggle -->
+      <div class="mt-6 max-w-3xl mx-auto">
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div class="flex items-center gap-2">
+            <input type="checkbox" id="demo-mode" onchange="toggleDemoMode()" class="rounded">
+            <label for="demo-mode" class="text-sm text-gray-600">Demo Mode (use mock data for testing)</label>
           </div>
+        </div>
+      </div>
+
+      <!-- Last Campaign Summary -->
+      <div id="last-campaign-summary" class="mt-4 max-w-3xl mx-auto hidden">
+        <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm text-gray-600">
+          <span class="font-medium">Last Campaign:</span> <span id="last-campaign-text"></span>
+        </div>
       </div>
     </div>
   </header>
 
   <!-- Main Content -->
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-
-    <!-- Campaign Configuration Section -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6 transition-all hover:shadow-md">
-      <div class="p-6 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
-        <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <i class="fas fa-sliders-h text-gray-500"></i> Configuration
-        </h2>
-         <div class="flex space-x-3">
-             <button onclick="loadSampleJSON()" class="text-sm text-blue-600 hover:text-blue-800 font-medium px-3 py-1.5 rounded-md hover:bg-blue-50 transition-colors">
-                <i class="fas fa-magic mr-1"></i> Load Sample
-             </button>
-            <button onclick="clearForm()" class="text-sm text-gray-500 hover:text-gray-700 font-medium px-3 py-1.5 rounded-md hover:bg-gray-100 transition-colors">
-                <i class="fas fa-trash-alt mr-1"></i> Clear
-            </button>
-        </div>
-      </div>
-      
-      <div class="p-6 grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        <!-- Left Column: Settings -->
-        <div class="space-y-6">
-           <div>
-            <label for="pipeline-select" class="block text-sm font-bold text-gray-700 mb-2">Select Pipeline Target</label>
-            <div class="relative">
-                <select id="pipeline-select" onchange="updatePipelineInJSON()" class="appearance-none w-full p-3 pl-4 pr-10 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow text-gray-700 font-medium">
-                  <option value="google_maps_business_search">Google Maps Scrapper</option>
-                  <option value="local_businesses">Local Business Scraper</option>
-                  <option value="instagram_influencer_search">Company / Organizations Scrapper</option>
-                </select>
-                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
-                  <i class="fas fa-chevron-down text-xs"></i>
-                </div>
-            </div>
-            <p class="text-xs text-gray-500 mt-2"><i class="fas fa-info-circle"></i> This updates the JSON configuration automatically.</p>
-          </div>
-          
-          <div>
-            <label for="email-language" class="block text-sm font-bold text-gray-700 mb-2">Email Language</label>
-             <div class="relative">
-                <select id="email-language" onchange="updateEmailLanguage()" class="appearance-none w-full p-3 pl-4 pr-10 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow text-gray-700 font-medium">
-                  <option value="english">English 🇺🇸</option>
-                  <option value="spanish">Spanish 🇪🇸</option>
-                  <option value="french">French 🇫🇷</option>
-                </select>
-                 <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
-                  <i class="fas fa-chevron-down text-xs"></i>
-                </div>
-            </div>
-          </div>
-
-           <div class="pt-4">
-                <button id="run-campaign-btn" onclick="runCampaign()" class="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-4 px-6 rounded-lg shadow-lg hover:shadow-xl transform transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                  <span>Run Campaign</span> <i class="fas fa-paper-plane"></i>
-                </button>
-           </div>
-        </div>
-
-        <!-- Right Column: JSON Input -->
-        <div class="lg:col-span-2">
-          <label for="campaign-json" class="block text-sm font-bold text-gray-700 mb-2 flex justify-between">
-              <span>Campaign JSON Payload</span>
-              <span id="json-status" class="text-xs font-normal text-gray-500">Ready</span>
-          </label>
-          <div class="relative group">
-              <textarea
-                id="campaign-json"
-                rows="16"
-                class="w-full p-4 bg-gray-50 border border-gray-300 rounded-lg font-mono text-xs leading-relaxed focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none resize-none text-gray-800 shadow-inner"
-                spellcheck="false"
-                oninput="validateJSON()"
-              ></textarea>
-              <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onclick="copyJSON()" class="text-xs bg-white border border-gray-200 px-2 py-1 rounded text-gray-500 hover:text-blue-600">Copy</button>
-              </div>
-          </div>
-          <div id="json-error" class="text-red-500 text-xs mt-2 hidden flex items-center gap-1"><i class="fas fa-exclamation-triangle"></i> Invalid JSON format.</div>
-        </div>
-      </div>
-    </div>
-
+    
     <!-- Campaign Status Section -->
-    <div id="status-section" class="hidden bg-white rounded-xl shadow-md border border-gray-200 p-8 mb-6 text-center relative overflow-hidden">
-      <!-- Background decoration -->
-      <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500"></div>
+    <div id="status-section" class="bg-white rounded-lg shadow-md border border-gray-200 p-6 mb-6 hidden">
+      <h2 class="text-2xl font-semibold text-gray-900 mb-4">Campaign Status</h2>
       
-      <h2 class="text-2xl font-bold text-gray-900 mb-2">Campaign In Progress</h2>
-      <p class="text-gray-500 mb-8">Orchestrating workflow execution...</p>
+      <div class="flex justify-between items-center mb-4">
+        <div>
+          <span class="text-sm font-medium text-gray-500">Campaign ID:</span>
+          <span id="campaign-id" class="text-sm font-semibold text-gray-800">camp_vcD4v35uk_1762991597620</span>
+        </div>
+        <div>
+          <span class="text-sm font-medium text-gray-500">Elapsed Time:</span>
+          <span id="elapsed-time" class="text-sm font-semibold text-gray-800">0:00</span>
+        </div>
+      </div>
       
-      <div class="max-w-2xl mx-auto">
-          <div class="relative pt-1">
-            <div class="flex mb-2 items-center justify-between">
-              <div>
-                <span id="status-text" class="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full text-blue-600 bg-blue-200">
-                  Initializing
-                </span>
-              </div>
-              <div class="text-right">
-                <span id="progress-percentage" class="text-xs font-semibold inline-block text-blue-600">
-                  0%
-                </span>
-              </div>
-            </div>
-            <div class="overflow-hidden h-2 mb-4 text-xs flex rounded bg-blue-100">
-              <div id="progress-bar" style="width:0%" class="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-blue-500 transition-all duration-500 ease-out"></div>
-            </div>
-          </div>
-          
-          <div id="terminal-log" class="mt-6 bg-gray-900 rounded-lg p-4 text-left font-mono text-xs text-green-400 h-32 overflow-y-auto shadow-inner border border-gray-700">
-              <div class="opacity-50">> System ready.</div>
-          </div>
+      <div class="flex items-center space-x-3 mb-4">
+        <div id="status-indicator" class="w-4 h-4 rounded-full bg-blue-500 pulse-animation"></div>
+        <span id="status-text" class="text-lg font-semibold text-gray-800">Running</span>
+      </div>
+      
+      <div class="w-full bg-gray-200 rounded-full h-2.5 mb-4">
+        <div id="progress-bar" class="progress-bar h-2.5 bg-blue-600 rounded-full" style="width: 0%"></div>
+      </div>
+      <div class="flex justify-end text-sm font-medium text-gray-600">
+        <span id="progress-percentage">0</span>% Complete
+      </div>
+      
+      <div class="mt-4">
+        <span class="text-sm font-medium text-gray-500">Current Step:</span>
+        <div id="current-step" class="text-lg font-semibold text-gray-800">Initializing campaign...</div>
+      </div>
+      
+      <div class="mt-2">
+        <span class="text-sm font-medium text-gray-500">Estimated Time Remaining:</span>
+        <span id="estimated-time" class="text-sm font-semibold text-gray-800">Calculating...</span>
       </div>
     </div>
 
     <!-- Campaign Results Section -->
-    <div id="results-section" class="hidden space-y-6">
+    <div id="results-section" class="bg-white rounded-lg shadow-md border border-gray-200 p-6 hidden">
+      <h2 class="text-2xl font-semibold text-gray-900 mb-4">✅ Campaign Results</h2>
       
-      <!-- Stats Cards -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex items-center justify-between border-l-4 border-green-500">
-            <div>
-                <p class="text-sm font-medium text-gray-500 uppercase tracking-wider">Hot Leads</p>
-                <p class="text-3xl font-bold text-gray-900 mt-1" id="hot-leads-count">0</p>
-            </div>
-            <div class="bg-green-100 p-3 rounded-full text-green-600">
-                <i class="fas fa-fire text-xl"></i>
-            </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <div class="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+          <div class="text-4xl font-bold text-green-800" id="hot-leads-count">0</div>
+          <div class="text-sm font-medium text-green-700">Hot Leads</div>
         </div>
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex items-center justify-between border-l-4 border-blue-500">
-             <div>
-                <p class="text-sm font-medium text-gray-500 uppercase tracking-wider">Other Leads</p>
-                <p class="text-3xl font-bold text-gray-900 mt-1" id="other-leads-count">0</p>
-            </div>
-            <div class="bg-blue-100 p-3 rounded-full text-blue-600">
-                <i class="fas fa-snowflake text-xl"></i>
-            </div>
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+          <div class="text-4xl font-bold text-blue-800" id="other-leads-count">0</div>
+          <div class="text-sm font-medium text-blue-700">Other Leads</div>
         </div>
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex items-center justify-between border-l-4 border-gray-500">
-             <div>
-                <p class="text-sm font-medium text-gray-500 uppercase tracking-wider">Total Found</p>
-                <p class="text-3xl font-bold text-gray-900 mt-1" id="total-leads">0</p>
-            </div>
-            <div class="bg-gray-100 p-3 rounded-full text-gray-600">
-                <i class="fas fa-list text-xl"></i>
-            </div>
+        <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
+          <div class="text-4xl font-bold text-gray-800" id="total-leads">0</div>
+          <div class="text-sm font-medium text-gray-700">Total Leads Found</div>
         </div>
       </div>
       
-      <!-- Results Tables Container -->
-      <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div class="border-b border-gray-200">
-             <nav class="-mb-px flex" aria-label="Tabs">
-                <button id="tab-hot" class="w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm border-green-500 text-green-600 hover:text-green-800 hover:border-green-600 focus:outline-none transition-colors" onclick="switchTab('hot')">
-                   🔥 Hot Leads (<span id="tab-hot-count">0</span>)
-                </button>
-                <button id="tab-other" class="w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 focus:outline-none transition-colors" onclick="switchTab('other')">
-                   ❄️ Other Leads (<span id="tab-other-count">0</span>)
-                </button>
-            </nav>
+      <div class="flex justify-between items-center text-sm text-gray-600 mb-6">
+        <div>
+          <span class="font-medium">Campaign ID:</span> <span id="results-campaign-id"></span>
         </div>
-
-        <div class="p-6 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
-             <h3 class="text-lg font-medium text-gray-900" id="current-view-title">Hot Leads</h3>
-             <div class="flex gap-3">
-                 <button onclick="previewEmailTemplate()" class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                    <i class="fas fa-eye mr-2"></i> Preview Email
-                </button>
-                 <button id="send-all-btn" onclick="sendAllEmails()" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed">
-                    <i class="fas fa-paper-plane mr-2"></i> Send all Emails
-                </button>
-             </div>
+        <div>
+          <span class="font-medium">Duration:</span> <span id="campaign-duration">0m</span>
         </div>
+      </div>
+      
+      <!-- Hot Leads Section -->
+      <div class="mb-8">
+        <div class="flex justify-between items-center">
+            <h3 class="text-xl font-semibold text-gray-900">🔥 Hot Leads (<span id="hot-leads-summary">0</span>)</h3>
+            <button 
+              id="send-all-emails-btn-hot-leads-table"
+              onclick="sendBulkEmails('hot-leads-table')" 
+              class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+            >
+              Send all emails
+            </button>
+          </div>
+        <p class="text-sm text-gray-600 mb-4">These leads match your ideal customer profile and are ready for immediate outreach.</p>
         
-        <div class="overflow-x-auto">
-             <div id="hot-leads-view" class="block">
-                <div id="hot-leads-table" class="min-w-full"></div>
-             </div>
-             <div id="other-leads-view" class="hidden">
-                <div id="other-leads-table" class="min-w-full"></div>
-             </div>
+        <div id="hot-leads-table" class="mt-4"></div>
+        
+        <div class="mt-4 flex space-x-3">
+          <button onclick="downloadExcel()" class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+            Export to Excel
+          </button>
         </div>
       </div>
-
-      <!-- Footer Action -->
-      <div class="flex justify-end">
-        <button onclick="startNewCampaign()" class="text-gray-600 hover:text-gray-900 font-medium text-sm flex items-center gap-1">
-            <i class="fas fa-redo"></i> Start New Campaign
+      
+      <!-- Other Leads Section -->
+      <div class="mb-8">
+        <div class="flex justify-between items-center">
+            <h3 class="text-xl font-semibold text-gray-900">🧊 Other Leads (<span id="other-leads-summary">0</span>)</h3>
+            <button 
+              id="send-all-emails-btn-other-leads-table"
+              onclick="sendBulkEmails('other-leads-table')" 
+              class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+            >
+              Send all emails
+            </button>
+          </div>
+        <p class="text-sm text-gray-600 mb-4">These leads require a nurturing sequence. Use the AI-generated email template below.</p>
+        
+        <div id="other-leads-table" class="mt-4"></div>
+        
+        <div class="mt-4 flex space-x-3">
+          <button onclick="previewEmail()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+            Preview Email Template
+          </button>
+          
+        </div>
+      </div>
+      
+      <!-- History and New Campaign -->
+      <div class="border-t border-gray-200 pt-6 flex justify-between items-center">
+        <button onclick="exportHistory()" class="text-sm text-gray-500 hover:text-gray-700 font-medium">
+          Export History
+        </button>
+        <button onclick="startNewCampaign()" class="bg-gray-800 hover:bg-gray-900 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+          Start New Campaign
         </button>
       </div>
     </div>
     
     <!-- Footer -->
-    <footer class="text-center text-xs text-gray-400 mt-12 py-4 border-t border-gray-200">
-      Lead Gen Dashboard v2.1
+    <footer class="text-center text-sm text-gray-500 mt-12 py-4 border-t border-gray-200">
+      © 2025 Lead Generation Dashboard | Version 1.0.0 | <a href="#" class="text-blue-600 hover:text-blue-800">Documentation</a>
     </footer>
   </main>
 
   <script>
     // ========================================
-    // CONFIGURATION & STATE
+    // CONFIGURATION SECTION
     // ========================================
+    // !!! IMPORTANT !!! Replace with your actual n8n webhook URL
     const N8N_WEBHOOK_URL = 'https://primary-production-3af69.up.railway.app/webhook-test/NewLeadGen';
-    const EMAIL_SEND_WEBHOOK = 'https://primary-production-3af69.up.railway.app/webhook/email_send'; 
+    const EMAIL_WEBHOOK_URL = 'https://primary-production-3af69.up.railway.app/webhook-test/email_send'; // New constant for email sending 
+    // ========================================
     
-    const state = {
-      demoMode: false,
-      currentTab: 'hot',
-      hotLeads: [],
-      otherLeads: [],
-      allLeads: [],
-      pipeline: 'google_maps_business_search',
-      emailHtml: '' // Will store the loaded email template
+    const STATUS_MESSAGES = {
+      initializing: 'Initializing campaign...',
+      scraping_linkedin: 'Scraping profiles...',
+      enriching: 'Enriching lead data with AI...',
+      scoring: 'AI scoring and classification...',
+      generating_reports: 'Generating reports...',
+      preparing_emails: 'Preparing personalized emails...',
+      completed: 'Campaign completed. Results ready.'
     };
 
-    // Email template storage - This would normally be loaded from file, 
-    // but we'll embed it in variable for the preview logic based on the uploaded file content.
-    let emailTemplateContent = ``; // Will be populated
+    const EMAIL_TEMPLATES = {
+      english: {
+        subject: "Quick question about {{business_name}}'s growth",
+        body: `
+          <p>Hi {{lead_name}},</p>
+          <p>I noticed your company, <strong>{{business_name}}</strong>, in {{location}}. We specialize in helping companies like yours with their digital presence.</p>
+          <p>Based on our analysis, we believe we can significantly help you with: <strong>{{service_suggestions}}</strong>.</p>
+          <p>Would you be open to a quick 15-minute chat next week to discuss this further?</p>
+          <p>You can book a time directly here: <a href="{{cta_link}}">{{cta_link}}</a></p>
+          <p>Best regards,</p>
+          <p>[Your Name]</p>
+        `
+      },
+      spanish: {
+        subject: "Una pregunta rápida sobre el crecimiento de {{business_name}}",
+        body: `
+          <p>Hola {{lead_name}},</p>
+          <p>Noté su empresa, <strong>{{business_name}}</strong>, en {{location}}. Nos especializamos en ayudar a empresas como la suya con su presencia digital.</p>
+          <p>Según nuestro análisis, creemos que podemos ayudarle significativamente con: <strong>{{service_suggestions}}</strong>.</p>
+          <p>¿Estaría abierto a una conversación rápida de 15 minutos la próxima semana para discutir esto más a fondo?</p>
+          <p>Puede reservar una hora directamente aquí: <a href="{{cta_link}}">{{cta_link}}</a></p>
+          <p>Saludos cordiales,</p>
+          <p>[Su Nombre]</p>
+        `
+      },
+      french: {
+        subject: "Une question rapide sur la croissance de {{business_name}}",
+        body: `
+          <p>Bonjour {{lead_name}},</p>
+          <p>J'ai remarqué votre entreprise, <strong>{{business_name}}</strong>, à {{location}}. Nous sommes spécialisés dans l'aide aux entreprises comme la vôtre pour leur présence numérique.</p>
+          <p>Sur la base de notre analyse, nous pensons pouvoir vous aider de manière significative avec : <strong>{{service_suggestions}}</strong>.</p>
+          <p>Seriez-vous disponible pour une courte discussion de 15 minutes la semaine prochaine pour en discuter davantage ?</p>
+          <p>Vous pouvez réserver un créneau directement ici : <a href="{{cta_link}}">{{cta_link}}</a></p>
+          <p>Cordialement,</p>
+          <p>[Votre Nom]</p>
+        `
+      }
+    };
+
+    // Mock response structure for demo mode
+    const MOCK_LEADS_RESPONSE = {
+      summary: {
+        total: 5,
+        hot: 2,
+        cold: 3,
+        batch_id: "1",
+        pipeline: "linkedin_profile_urls"
+      },
+      columns: [
+        "lead_number", "type", "name", "handle", "url", "classification", "reach", "engagement_total", "relevance_score", "relevance_keywords"
+      ],
+      rows: [
+        { "lead_number": 1, "type": "linkedin_profile_urls", "name": "Marie G", "handle": null, "url": "https://linkedin.com/in/marie-g", "classification": "Hot", "reach": 100, "engagement_total": 50, "relevance_score": 90, "relevance_keywords": ["AI", "SaaS"] },
+        { "lead_number": 2, "type": "linkedin_profile_urls", "name": "Yu Bao", "handle": null, "url": "https://linkedin.com/in/yu-bao", "classification": "Cold", "reach": 50, "engagement_total": 10, "relevance_score": 40, "relevance_keywords": ["Fintech"] },
+        { "lead_number": 3, "type": "linkedin_profile_urls", "name": "Brian LaReau", "handle": null, "url": "https://linkedin.com/in/brian-l", "classification": "Hot", "reach": 120, "engagement_total": 60, "relevance_score": 95, "relevance_keywords": ["Cloud", "DevOps"] },
+        { "lead_number": 4, "type": "linkedin_profile_urls", "name": "Kento Matsuki", "handle": null, "url": "https://linkedin.com/in/kento-m", "classification": "Cold", "reach": 30, "engagement_total": 5, "relevance_score": 30, "relevance_keywords": ["Gaming"] },
+        { "lead_number": 5, "type": "linkedin_profile_urls", "name": "Ravi Karamsetty", "handle": null, "url": "https://linkedin.com/in/ravi-k", "classification": "Cold", "reach": 80, "engagement_total": 20, "relevance_score": 55, "relevance_keywords": ["E-commerce"] }
+      ]
+    };
+
+    // Global state object
+    const state = {
+      demoMode: false,
+      currentCampaignId: null,
+      campaignStartTime: null,
+      timerInterval: null,
+      progressInterval: null, // New interval for fake progress
+      resultsData: null,
+      lastCampaignData: null,
+      campaignHistory: [],
+      currentLanguage: 'english',
+      uploadedFile: null,
+      fileData: null,
+      hotLeads: [],
+      coldLeads: [],
+      allLeads: []
+    };
 
     // ========================================
-    // UI INTERACTION FUNCTIONS
+    // CORE FUNCTIONS
     // ========================================
 
     function toggleDemoMode() {
@@ -353,131 +343,1263 @@ LEAD GENERATION DASHBOARD
       showToast(state.demoMode ? 'Demo Mode Activated' : 'Demo Mode Deactivated', 'info');
     }
 
-    function switchTab(tab) {
-        state.currentTab = tab;
-        document.getElementById('tab-hot').className = tab === 'hot' 
-            ? "w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm border-green-500 text-green-600" 
-            : "w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 transition-colors cursor-pointer";
-            
-        document.getElementById('tab-other').className = tab === 'other' 
-            ? "w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm border-blue-500 text-blue-600" 
-            : "w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 transition-colors cursor-pointer";
-        
-        document.getElementById('hot-leads-view').className = tab === 'hot' ? 'block' : 'hidden';
-        document.getElementById('other-leads-view').className = tab === 'other' ? 'block' : 'hidden';
-        
-        document.getElementById('current-view-title').textContent = tab === 'hot' ? 'Hot Leads' : 'Other Leads';
-    }
-
-    function updatePipelineInJSON() {
-        const select = document.getElementById('pipeline-select');
-        const selectedPipeline = select.value;
-        state.pipeline = selectedPipeline;
-        
-        // Try to update JSON if valid
-        const jsonStr = document.getElementById('campaign-json').value;
-        try {
-            if (jsonStr.trim()) {
-                let jsonObj = JSON.parse(jsonStr);
-                jsonObj.pipeline = selectedPipeline;
-                document.getElementById('campaign-json').value = JSON.stringify(jsonObj, null, 2);
-                validateJSON();
-            } else {
-                // If empty, load the sample immediately
-                loadSampleJSON();
-            }
-        } catch (e) {
-            // If invalid JSON, just warn but don't break logic
-            // We won't force update invalid JSON
-        }
-    }
-    
-    function updateEmailLanguage() {
-        // Placeholder for language selection logic if needed in future
-        // Currently just visual selection
-    }
-
     function validateJSON() {
       const jsonInput = document.getElementById('campaign-json');
       const jsonError = document.getElementById('json-error');
       const runButton = document.getElementById('run-campaign-btn');
-      const status = document.getElementById('json-status');
       
       try {
-        if(jsonInput.value.trim() === "") throw new Error("Empty");
         JSON.parse(jsonInput.value);
         jsonError.classList.add('hidden');
-        jsonInput.classList.remove('border-red-500');
-        jsonInput.classList.add('border-gray-300');
         runButton.disabled = false;
-        status.innerHTML = '<span class="text-green-500"><i class="fas fa-check-circle"></i> Valid</span>';
       } catch (e) {
-        if (jsonInput.value.trim() !== "") {
-            jsonError.classList.remove('hidden');
-            jsonInput.classList.add('border-red-500');
-            jsonInput.classList.remove('border-gray-300');
-            runButton.disabled = true;
-            status.innerHTML = '<span class="text-red-500">Invalid</span>';
-        } else {
-            runButton.disabled = true;
-             status.innerHTML = 'Empty';
-        }
+        jsonError.classList.remove('hidden');
+        runButton.disabled = true;
       }
-    }
-
-    function copyJSON() {
-        const textarea = document.getElementById('campaign-json');
-        textarea.select();
-        document.execCommand('copy');
-        showToast('JSON copied to clipboard', 'success');
-        window.getSelection().removeAllRanges();
     }
 
     function loadSampleJSON() {
       const pipeline = document.getElementById('pipeline-select').value;
-      let sample = {};
-
-      // Sample based on pipeline as requested
-      if (pipeline === "google_maps_business_search") {
-          sample = {
-            "pipeline": "google_maps_business_search",
-            "campaign_name": "Local Gyms London",
-            "queries": ["gyms in London", "fitness centers London"],
-            "max_results": 20
-          };
-      } else if (pipeline === "local_businesses") {
-          sample = {
-            "pipeline": "local_businesses",
-            "campaign_name": "Plumbers Manchester",
-            "location": "Manchester, UK",
-            "category": "Plumber",
-            "radius_km": 10
-          };
-      } else if (pipeline === "instagram_influencer_search") {
-           sample = {
-            "pipeline": "instagram_influencer_search",
-            "campaign_name": "Beauty Influencers",
-            "hashtags": ["#beauty", "#makeup"],
-            "min_followers": 5000
-          };
-      } else {
-          // Fallback
-           sample = {
-            "pipeline": pipeline,
-            "campaign_name": "Generic Campaign"
-          };
-      }
-      
+      const samples = {
+        'google_maps_business_search': {
+          pipeline: 'google_maps_business_search',
+          campaignName: 'Sample Google Maps Campaign',
+          searchLocation: 'Riyadh, Saudi Arabia',
+          searchKeyword: 'restaurants',
+          maxResults: 50
+        },
+        'local_businesses': {
+          pipeline: 'local_businesses',
+          campaignName: 'Sample Local Business Campaign',
+          city: 'Riyadh',
+          country: 'Saudi Arabia',
+          category: 'Clinics',
+          maxResults: 50
+        },
+        'instagram_influencer_search': {
+          pipeline: 'instagram_influencer_search',
+          campaignName: 'Sample Companies / Organizations Campaign',
+          industry: 'E-commerce',
+          country: 'Saudi Arabia',
+          minFollowers: 5000,
+          maxResults: 50
+        }
+      };
+      const sample = samples[pipeline] || samples['google_maps_business_search'];
       document.getElementById('campaign-json').value = JSON.stringify(sample, null, 2);
       validateJSON();
     }
 
+    async function runCampaign() {
+      const jsonInput = document.getElementById('campaign-json').value;
+      const pipeline = document.getElementById('pipeline-select').value;
+      
+      try {
+        const campaignData = JSON.parse(jsonInput);
+        
+        // Update pipeline field with selected value
+        campaignData.pipeline = pipeline;
+        
+        // Clear any previous campaign status/results
+        if (state.timerInterval) clearInterval(state.timerInterval);
+        if (state.progressInterval) clearInterval(state.progressInterval);
+        document.getElementById('elapsed-time').textContent = '0:00';
+        document.getElementById('progress-percentage').textContent = '0';
+        document.getElementById('progress-bar').style.width = '0%';
+        document.getElementById('status-section').classList.remove('hidden');
+        document.getElementById('results-section').classList.add('hidden');
+        
+        // Save to history
+        state.lastCampaignData = { ...campaignData, pipeline };
+
+        // Show status section
+        document.getElementById('status-section').classList.remove('hidden');
+        document.getElementById('results-section').classList.add('hidden');
+
+        // Start tracking and simulated progress
+        startCampaignTracking(generateCampaignId());
+
+        if (state.demoMode) {
+          // Demo mode - simulate campaign
+          simulateCampaign();
+        } else {
+          // Real mode - call webhook
+          // NOTE: Fixed timeout (AbortSignal.timeout) is removed as requested.
+          const response = await fetch(N8N_WEBHOOK_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              campaign: campaignData,
+              pipeline: pipeline,
+              timestamp: new Date().toISOString()
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const result = await response.json();
+          console.log('Raw webhook response:', JSON.stringify(result, null, 2));
+          
+          // Extract leads from the webhook response
+          const extractedData = extractResponseData(result);
+
+          if (!extractedData) {
+            console.error('Could not extract leads data from response. Response was:', result);
+            throw new Error('Could not extract leads data from response');
+          }
+
+          console.log('✓ Extracted leads data:', extractedData.length, 'items');
+
+          // Process and complete the campaign immediately upon receiving the final data
+          const processedResults = processLeadsData(extractedData);
+          completeCampaign(processedResults);
+        }
+
+        showToast('Campaign started successfully!', 'success');
+
+      } catch (e) {
+        handleCampaignError(e.message);
+        console.error('Campaign error:', e);
+      }
+    }
+
+    function generateCampaignId() {
+      return 'camp_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+    }
+
+    function startCampaignTracking(campaignId) {
+      state.currentCampaignId = campaignId;
+      state.campaignStartTime = Date.now();
+      
+      document.getElementById('campaign-id').textContent = campaignId;
+      updateStatus('running', 0, STATUS_MESSAGES.initializing);
+
+      // Start elapsed time counter
+      state.timerInterval = setInterval(updateElapsedTime, 1000);
+
+      // Start simulated progress
+      state.progressInterval = setInterval(updateSimulatedProgress, 1000);
+    }
+
+    function updateElapsedTime() {
+      if (!state.campaignStartTime) return;
+      
+      const elapsed = Math.floor((Date.now() - state.campaignStartTime) / 1000);
+      const minutes = Math.floor(elapsed / 60);
+      const seconds = elapsed % 60;
+      
+      document.getElementById('elapsed-time').textContent = 
+        `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }
+
+    // New function for simulated progress
+    function updateSimulatedProgress() {
+      const steps = [
+        { progress: 10, message: STATUS_MESSAGES.initializing },
+        { progress: 25, message: STATUS_MESSAGES.scraping_linkedin },
+        { progress: 45, message: STATUS_MESSAGES.enriching },
+        { progress: 65, message: STATUS_MESSAGES.scoring },
+        { progress: 80, message: STATUS_MESSAGES.generating_reports },
+        { progress: 95, message: STATUS_MESSAGES.preparing_emails }
+      ];
+
+      const elapsedSeconds = Math.floor((Date.now() - state.campaignStartTime) / 1000);
+      
+      // Cycle through the steps based on elapsed time (e.g., change step every 10 seconds)
+      const stepDuration = 10; // seconds per step
+      const stepIndex = Math.min(Math.floor(elapsedSeconds / stepDuration), steps.length - 1);
+      const currentStep = steps[stepIndex];
+      
+      // Calculate a fluctuating progress within the current step's range
+      const minProgress = stepIndex > 0 ? steps[stepIndex - 1].progress : 0;
+      const maxProgress = currentStep.progress;
+      const timeInStep = elapsedSeconds % stepDuration;
+      
+      // Linear interpolation for progress, but cap at 95%
+      let progress = Math.min(95, minProgress + (maxProgress - minProgress) * (timeInStep / stepDuration));
+      
+      // Add a small random fluctuation to make it look less robotic
+      progress = Math.min(95, progress + Math.random() * 2);
+
+      updateStatus('running', Math.floor(progress), currentStep.message);
+    }
+
+    function updateStatus(status, progress, message) {
+      const indicator = document.getElementById('status-indicator');
+      const statusText = document.getElementById('status-text');
+      const progressBar = document.getElementById('progress-bar');
+      const progressPct = document.getElementById('progress-percentage');
+      const currentStep = document.getElementById('current-step');
+
+      // Update status indicator color
+      indicator.className = 'w-4 h-4 rounded-full';
+      
+      if (status === 'pending') {
+        indicator.classList.add('bg-yellow-400');
+        statusText.textContent = 'Pending';
+      } else if (status === 'running') {
+        indicator.classList.add('bg-blue-500', 'pulse-animation');
+        statusText.textContent = 'Running';
+      } else if (status === 'completed') {
+        indicator.classList.add('bg-green-500');
+        statusText.textContent = 'Completed';
+      } else if (status === 'error') {
+        indicator.classList.add('bg-red-500');
+        statusText.textContent = 'Error';
+      }
+
+      // Update progress
+      progressBar.style.width = `${progress}%`;
+      progressPct.textContent = progress;
+
+      // Update current step
+      currentStep.textContent = message;
+    }
+
+    function simulateCampaign() {
+      // Start tracking and simulated progress is already called in runCampaign()
+      
+      // Simulate a delay before the mock response is received
+      setTimeout(() => {
+        const extractedData = extractResponseData(MOCK_LEADS_RESPONSE);
+        const processedResults = processLeadsData(extractedData);
+        completeCampaign(processedResults);
+      }, 15000); // 15 second delay to allow simulated progress to run
+    }
+
+    function completeCampaign(results) {
+      // Stop timers and progress simulation
+      if (state.timerInterval) clearInterval(state.timerInterval);
+      if (state.progressInterval) clearInterval(state.progressInterval);
+
+      updateStatus('completed', 100, STATUS_MESSAGES.completed);
+      
+      state.resultsData = results;
+
+      // Calculate duration
+      const duration = Math.floor((Date.now() - state.campaignStartTime) / 1000 / 60);
+
+      // Save to history
+      const historyEntry = {
+        campaignId: state.currentCampaignId,
+        timestamp: new Date().toISOString(),
+        duration: `${duration}m`,
+        results: results
+      };
+      
+      state.campaignHistory.unshift(historyEntry);
+      if (state.campaignHistory.length > 5) {
+        state.campaignHistory = state.campaignHistory.slice(0, 5);
+      }
+      // Store in memory only (no localStorage in sandbox)
+      updateLastCampaignSummary();
+
+      // Display results
+      displayResults(results, duration);
+      
+      showToast('Campaign completed successfully!', 'success');
+    }
+
+    function displayResults(results, duration) {
+      console.log('Displaying results:', results);
+      
+      // Show results section
+      document.getElementById('results-section').classList.remove('hidden');
+      document.getElementById('status-section').classList.add('hidden'); // Hide status section
+
+      // Update counts
+      const hotCount = results.hot_leads?.count || 0;
+      const otherCount = results.other_leads?.count || 0;
+      const totalCount = results.total_leads || (hotCount + otherCount);
+      
+      document.getElementById('hot-leads-count').textContent = hotCount;
+      document.getElementById('other-leads-count').textContent = otherCount;
+      document.getElementById('total-leads').textContent = totalCount;
+      document.getElementById('hot-leads-summary').textContent = hotCount;
+      document.getElementById('other-leads-summary').textContent = otherCount;
+      document.getElementById('campaign-duration').textContent = `${duration}m`;
+      document.getElementById('results-campaign-id').textContent = state.currentCampaignId;
+
+      // Render tables
+      renderLeadsTable('hot-leads-table', results.hot_leads.leads, results.hot_leads.count);
+      renderLeadsTable('other-leads-table', results.other_leads.leads, results.other_leads.count);
+      // Initialize bulk button state after rendering tables
+      updateBulkButtonState();
+
+      // Scroll to results
+      document.getElementById('results-section').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function handleCampaignError(error) {
+      if (state.timerInterval) clearInterval(state.timerInterval);
+      if (state.progressInterval) clearInterval(state.progressInterval);
+
+      updateStatus('error', 0, `Error: ${error}`);
+      showToast(`Campaign failed: ${error}`, 'error');
+    }
+
+    function extractResponseData(rawData) {
+      console.log('Extracting response data...', rawData);
+
+      try {
+        // Handle multiple webhook response formats
+
+        // Format 1: Direct array of leads
+        if (Array.isArray(rawData) && rawData.length > 0) {
+          console.log('✓ Direct array format:', rawData.length, 'items');
+          return rawData;
+        }
+
+        // Format 2: {summary: {...}, rows: [...]} from your n8n webhook (THIS IS THE CORRECT FORMAT)
+        if (rawData && typeof rawData === 'object' && Array.isArray(rawData.rows)) {
+          console.log('✓ Webhook format with rows:', rawData.rows.length, 'items');
+          return rawData.rows;
+        }
+
+        // Format 3: {summary: {...}, columns: [...], rows: [...]}
+        if (rawData && rawData.summary && Array.isArray(rawData.rows)) {
+          console.log('✓ Complete webhook format:', rawData.rows.length, 'items');
+          return rawData.rows;
+        }
+
+        // Format 4: Nested AI response structure (Original, now less likely)
+        if (Array.isArray(rawData) && rawData.length > 0) {
+          const firstItem = rawData[0];
+
+          if (firstItem.output && Array.isArray(firstItem.output)) {
+            const output = firstItem.output[0];
+            if (output.content && Array.isArray(output.content)) {
+              const content = output.content[0];
+              if (content.text && content.text.leads) {
+                console.log('✓ Nested AI format:', content.text.leads.length, 'items');
+                return content.text.leads;
+              }
+            }
+          }
+        }
+
+        // Format 5: Object with leads property
+        if (rawData && typeof rawData === 'object' && Array.isArray(rawData.leads)) {
+          console.log('✓ Object with leads property:', rawData.leads.length, 'items');
+          return rawData.leads;
+        }
+
+        console.warn('⚠️ Could not extract leads from response structure:', rawData);
+        return null;
+      } catch (e) {
+        console.error('❌ Error extracting response data:', e);
+        return null;
+      }
+    }
+
+    function processLeadsData(leads) {
+      console.log('Processing leads data:', leads, state.currentCampaignId);
+      
+      if (!leads || !Array.isArray(leads)) {
+        console.error('Invalid leads data');
+        return null;
+      }
+
+      // 1. Initialize emailSent status for all leads
+      // Assign a unique leadId if missing, and initialize emailSent
+      const processedLeads = leads.map((lead, index) => ({
+        ...lead,
+        leadId: lead.leadId || `${state.currentCampaignId}_${index}`, // Ensure a unique ID
+        emailSent: false, // New field for idempotency
+        // Add a default name if missing for display purposes
+        name: lead.name || `Lead ${index + 1}`
+      }));
+
+      // Separate hot and cold leads (case-insensitive)
+      const hotLeads = processedLeads.filter(lead => 
+        lead.classification && lead.classification.toLowerCase() === 'hot'
+      );
+      
+      const otherLeads = processedLeads.filter(lead => 
+        !lead.classification || lead.classification.toLowerCase() !== 'hot'
+      );
+
+      console.log(`Processed: ${hotLeads.length} hot leads, ${otherLeads.length} other leads`);
+
+      // Store leads in state for use in email functions and Excel export
+      state.hotLeads = hotLeads;
+      state.coldLeads = otherLeads; // Renamed to coldLeads for consistency with excel export function
+      state.allLeads = processedLeads; // Store all leads for easy lookup and bulk processing
+
+      return {
+        hot_leads: {
+          count: hotLeads.length,
+          leads: hotLeads
+        },
+        other_leads: {
+          count: otherLeads.length,
+          leads: otherLeads,
+          email_template_populated: true
+        },
+        total_leads: processedLeads.length,
+        all_leads: processedLeads
+      };
+    }
+
+    function renderLeadsTable(containerId, leads, totalCount) {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+
+      if (leads.length === 0) {
+        container.innerHTML = `<p class="text-sm text-gray-500">No leads found for this category.</p>`;
+        return;
+      }
+
+      const tableHtml = `
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Classification</th>
+                
+                
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Link</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email sent</th>
+                
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              ${leads.map(lead => `
+                <tr>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${lead.name || 'N/A'}</td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${lead.classification && lead.classification.toLowerCase() === 'hot' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}">
+                      ${lead.classification || 'Other'}
+                    </span>
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${lead.relevance_score || 'N/A'}</td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${(lead.relevance_keywords || []).join(', ') || 'N/A'}</td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    ${lead.url ? `<a href="${lead.url}" target="_blank" class="text-indigo-600 hover:text-indigo-900">View</a>` : 'N/A'}
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <span class="email-sent-status-${lead.leadId}">
+                      ${lead.emailSent ? '<span class="text-green-500 text-xl">✓</span>' : '—'}
+                    </span>
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    ${(lead.email && lead.email.includes('@')) ? 
+                      `<button 
+                        id="send-email-btn-${lead.leadId}"
+                        onclick="sendSingleEmail('${lead.leadId}')" 
+                        class="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors ${lead.emailSent ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}"
+                        ${lead.emailSent ? 'disabled' : ''}
+                      >
+                        Send email
+                      </button>` : 
+                      `<span class="text-xs text-red-500">No Email</span>`
+                    }
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+      container.innerHTML = tableHtml;
+    }
+
+    /*
+    function downloadReport(format) {
+      if (!state.resultsData) {
+        showToast('No results available', 'error');
+        return;
+      }
+
+      const url = format === 'word' ? 
+        state.resultsData.hot_leads.word_report_url : 
+        state.resultsData.hot_leads.pdf_report_url;
+
+      if (state.demoMode) {
+        showToast(`Demo mode: Would download ${format.toUpperCase()} report`, 'info');
+      } else {
+        window.open(url, '_blank');
+        showToast(`Downloading ${format.toUpperCase()} report...`, 'success');
+      }
+    }
+    */
+
+    function downloadExcel() {
+      if (!state.resultsData) {
+        showToast('No results available', 'error');
+        return;
+      }
+
+      const hotLeads = state.hotLeads || [];
+      const coldLeads = state.coldLeads || [];
+
+      if (hotLeads.length === 0 && coldLeads.length === 0) {
+        showToast('No leads data available for export', 'error');
+        return;
+      }
+
+      try {
+        // Create workbook
+        const wb = XLSX.utils.book_new();
+        
+        // Hot leads sheet
+        if (hotLeads.length > 0) {
+          const hotData = hotLeads.map(lead => ({
+            'Lead #': lead.lead_number,
+            'Name': lead.name,
+            'Classification': lead.classification,
+            'URL': lead.url,
+            'Reach': lead.reach,
+            'Engagement Total': lead.engagement_total,
+            'Relevance Score': lead.relevance_score,
+            'Relevance Keywords': (lead.relevance_keywords || []).join(', ')
+          }));
+          const hotSheet = XLSX.utils.json_to_sheet(hotData);
+          XLSX.utils.book_append_sheet(wb, hotSheet, 'Hot Leads');
+        }
+        
+        // Cold leads sheet
+        if (coldLeads.length > 0) {
+          const coldData = coldLeads.map(lead => ({
+            'Lead #': lead.lead_number,
+            'Name': lead.name,
+            'Classification': lead.classification || 'Other',
+            'URL': lead.url,
+            'Reach': lead.reach,
+            'Engagement Total': lead.engagement_total,
+            'Relevance Score': lead.relevance_score,
+            'Relevance Keywords': (lead.relevance_keywords || []).join(', ')
+          }));
+          const coldSheet = XLSX.utils.json_to_sheet(coldData);
+          XLSX.utils.book_append_sheet(wb, coldSheet, 'Other Leads');
+        }
+        
+        // Summary sheet
+        const totalLeads = hotLeads.length + coldLeads.length;
+        const conversionRate = totalLeads > 0 ? Math.round((hotLeads.length / totalLeads) * 100) : 0;
+        
+        const summaryData = [
+          { Metric: 'Total Leads', Value: totalLeads },
+          { Metric: 'Hot Leads', Value: hotLeads.length },
+          { Metric: 'Other Leads', Value: coldLeads.length },
+          { Metric: 'Conversion Rate', Value: `${conversionRate}%` }
+        ];
+        const summarySheet = XLSX.utils.json_to_sheet(summaryData);
+        XLSX.utils.book_append_sheet(wb, summarySheet, 'Summary');
+        
+        // Download
+        const timestamp = new Date().toISOString().split('T')[0];
+        XLSX.writeFile(wb, `leads-report-${timestamp}.xlsx`);
+        
+        showToast('Excel report downloaded successfully!', 'success');
+      } catch (e) {
+        console.error('Error generating Excel:', e);
+        showToast('Failed to generate Excel report: ' + e.message, 'error');
+      }
+    }
+
+    function showPreviewSummary() {
+      if (!state.resultsData) {
+        showToast('No results available', 'error');
+        return;
+      }
+
+      showToast(`Hot Leads Summary: ${state.resultsData.hot_leads.count} high-priority leads identified`, 'info');
+    }
+
+    function updateEmailLanguage() {
+      state.currentLanguage = document.getElementById('email-language').value;
+    }
+
     // ========================================
-    // EMAIL PREVIEW LOGIC
+    // NEW EMAIL SENDING FUNCTIONS
     // ========================================
-    
-    // We put the template content here directly to ensure it works without external fetch
-    const RAW_EMAIL_TEMPLATE = `<!doctype html>
+
+    // Helper to find a lead by ID
+    function findLeadById(leadId) {
+      return state.allLeads.find(lead => lead.leadId === leadId);
+    }
+
+    // Helper to update the UI for a single lead after a send attempt
+    function updateLeadUI(leadId, success) {
+      const lead = findLeadById(leadId);
+      if (!lead) return;
+
+      if (success) {
+        lead.emailSent = true;
+        // Update the tick icon
+        const statusSpan = document.querySelector(`.email-sent-status-${leadId}`);
+        if (statusSpan) {
+          statusSpan.innerHTML = '<span class="text-green-500 text-xl">✓</span>';
+        }
+        // Disable the button
+        const button = document.getElementById(`send-email-btn-${leadId}`);
+        if (button) {
+          button.disabled = true;
+          button.classList.remove('bg-indigo-600', 'hover:bg-indigo-700', 'text-white');
+          button.classList.add('bg-gray-300', 'text-gray-600', 'cursor-not-allowed');
+        }
+      }
+      // Re-render the bulk button to update the eligible count
+      updateBulkButtonState();
+    }
+
+    // Helper to update the bulk send button state (eligible count and disabled status)
+    function updateBulkButtonState() {
+      ['hot-leads-table', 'other-leads-table'].forEach(containerId => {
+        const leads = containerId === 'hot-leads-table' ? state.hotLeads : state.coldLeads;
+        const eligibleCount = leads.filter(l => l.email && l.email.includes('@') && !l.emailSent).length;
+        const allButton = document.getElementById(`send-all-emails-btn-${containerId}`);
+
+        if (allButton) {
+          allButton.textContent = `Send all emails (${eligibleCount} eligible)`;
+          if (eligibleCount === 0) {
+            allButton.disabled = true;
+            allButton.classList.remove('bg-green-600', 'hover:bg-green-700', 'text-white');
+            allButton.classList.add('bg-gray-300', 'text-gray-600', 'cursor-not-allowed');
+          } else {
+            allButton.disabled = false;
+            allButton.classList.remove('bg-gray-300', 'text-gray-600', 'cursor-not-allowed');
+            allButton.classList.add('bg-green-600', 'hover:bg-green-700', 'text-white');
+          }
+        }
+      });
+    }
+
+    // Helper to construct the metadata object
+    function getLeadMetadata(lead) {
+      // The requirement is to echo only the row fields currently rendered (e.g., url, classification)
+      // The rendered fields are: name, classification, relevance_score, relevance_keywords, url
+      return {
+        url: lead.url || null,
+        classification: lead.classification || null,
+        relevance_score: lead.relevance_score || null,
+        relevance_keywords: lead.relevance_keywords || null,
+        // The original data structure might have other fields like lead_number, handle, type, reach, engagement_total
+        // We will include them as they are part of the original lead object and might be useful
+        lead_number: lead.lead_number || null,
+        handle: lead.handle || null,
+        type: lead.type || null,
+        reach: lead.reach || null,
+        engagement_total: lead.engagement_total || null,
+      };
+    }
+
+    // Single Email Send Logic
+    async function sendSingleEmail(leadId) {
+      const lead = findLeadById(leadId);
+      if (!lead || lead.emailSent || !lead.email || !lead.email.includes('@')) {
+        showToast('Email already sent or no valid email address.', 'warning');
+        return;
+      }
+
+      const button = document.getElementById(`send-email-btn-${leadId}`);
+      if (button) button.disabled = true;
+
+      const payload = {
+        campaignId: state.currentCampaignId || 'N/A',
+        leadId: lead.leadId,
+        email: lead.email,
+        name: lead.name || null,
+        source: lead.type || null, // Assuming 'type' is the source
+        emailLanguage: state.currentLanguage,
+        metadata: getLeadMetadata(lead)
+      };
+
+      console.log('Single send payload:', payload);
+      
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30-second timeout
+
+        const response = await fetch(EMAIL_WEBHOOK_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          updateLeadUI(leadId, true);
+          showToast('Email sent successfully!', 'success');
+          console.log(`Single email sent for lead ${leadId}.`);
+        } else {
+          throw new Error(`HTTP Error: ${response.status}`);
+        }
+      } catch (e) {
+        if (e.name === 'AbortError') {
+          showToast('Email send failed: Request timed out (30s).', 'error');
+          console.error(`Email send failed for lead ${leadId}: Request timed out.`);
+        } else {
+          showToast(`Email send failed: ${e.message}`, 'error');
+          console.error(`Email send failed for lead ${leadId}: ${e.message}`);
+        }
+        if (button) button.disabled = false; // Re-enable button on failure
+      }
+    }
+
+    // Bulk Email Send Logic
+    async function sendBulkEmails(containerId) {
+      const pipeline = document.getElementById('pipeline-select').value;
+      const emailPayload = { pipeline: pipeline };
+      const buttonId = `send-all-emails-btn-${containerId}`;
+      const button = document.getElementById(buttonId);
+      if (!button) return;
+      button.disabled = true;
+      const originalText = button.innerHTML;
+      button.innerHTML = '<span style="display:inline-block;animation:spin 1s linear infinite;">⟳</span> Sending emails...';
+      fetch('https://primary-production-3af69.up.railway.app/webhook/email_send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(emailPayload)
+      })
+      .then(response => {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          return response.json().then(data => ({ data, ok: response.ok }));
+        } else {
+          return response.text().then(text => ({ data: text, ok: response.ok }));
+        }
+      })
+      .then(result => {
+        button.disabled = false;
+        button.innerHTML = originalText;
+        if (result.ok || result.data) {
+          const message = typeof result.data === 'string' ? result.data : (result.data.sentCount !== undefined ? `Emails sent: ${result.data.sentCount}${result.data.failedCount ? ' (Failed: ' + result.data.failedCount + ')' : ''}` : 'Emails sent successfully');
+          showToast(message, 'success');
+          console.log('Email send response:', result.data);
+        }
+      })
+      .catch(error => {
+        button.disabled = false;
+        button.innerHTML = originalText;
+        showToast(`Error sending emails: ${error.message}`, 'error');
+        console.error('Email send error:', error);
+      });
+    }
+    function previewEmail() {
+      const emailLanguage = document.getElementById('email-language').value || 'en';
+      const templateElement = document.getElementById('embedded-email-template');
+      if (!templateElement) {
+        showToast('Email template not found', 'error');
+        return;
+      }
+      const emailContent = templateElement.innerHTML;
+      const emailModal = document.getElementById('email-modal');
+      const previewContent = document.getElementById('email-preview-content');
+      if (previewContent) {
+        previewContent.innerHTML = emailContent;
+        if (emailLanguage === 'ar') {
+          previewContent.setAttribute('dir', 'rtl');
+          previewContent.style.textAlign = 'right';
+          previewContent.classList.add('email-lang-ar');
+          previewContent.classList.remove('email-lang-en');
+        } else {
+          previewContent.setAttribute('dir', 'ltr');
+          previewContent.style.textAlign = 'left';
+          previewContent.classList.add('email-lang-en');
+          previewContent.classList.remove('email-lang-ar');
+        }
+      }
+      if (emailModal) {
+        emailModal.classList.remove('hidden');
+      }
+    };
+
+      let emailHtml = template.body;
+      Object.keys(sampleData).forEach(key => {
+        emailHtml = emailHtml.replace(new RegExp(`{{${key}}}`, 'g'), sampleData[key]);
+      });
+
+      const modalContent = document.getElementById('email-preview-content');
+      modalContent.innerHTML = `
+        <div class="mb-4">
+          <h4 class="font-semibold text-gray-700 mb-2">Subject:</h4>
+          <p class="text-gray-900">${template.subject.replace('{{business_name}}', sampleData.business_name)}</p>
+        </div>
+        <div class="border-t pt-4">
+          <h4 class="font-semibold text-gray-700 mb-2">Email Body:</h4>
+          ${emailHtml}
+        </div>
+      `;
+
+      document.getElementById('email-modal').classList.remove('hidden');
+    }
+
+    function closeEmailModal() {
+      document.getElementById('email-modal').classList.add('hidden');
+    }
+
+    function copyEmailContent() {
+      const language = state.currentLanguage;
+      const template = EMAIL_TEMPLATES[language];
+      
+      const textContent = `Subject: ${template.subject}\n\n` + 
+        template.body.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+
+      navigator.clipboard.writeText(textContent).then(() => {
+        showToast('Email content copied to clipboard', 'success');
+      }).catch(() => {
+        showToast('Failed to copy email content', 'error');
+      });
+    }
+
+    // The original sendEmails function is now replaced by sendSingleEmail and sendBulkEmails.
+    // The original button was removed in the previous phase.
+    // Keeping the function body commented out for reference, but it is no longer used.
+    /*
+    async function sendEmails() {
+      if (!state.resultsData) {
+        showToast('No results available', 'error');
+        return;
+      }
+
+      const confirmed = confirm(`Send emails to ${state.resultsData.other_leads.count} leads?`);
+      if (!confirmed) return;
+
+      if (state.demoMode) {
+        showToast(`Demo mode: Would send ${state.resultsData.other_leads.count} emails`, 'info');
+        return;
+      }
+
+      try {
+        const response = await fetch(`${N8N_WEBHOOK_URL}/send-emails`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            campaignId: state.currentCampaignId,
+            language: state.currentLanguage
+          })
+        });
+
+        if (!response.ok) throw new Error('Failed to send emails');
+
+        const result = await response.json();
+        showToast(`Successfully sent ${result.emailsSent} emails`, 'success');
+      } catch (e) {
+        showToast(`Error sending emails: ${e.message}`, 'error');
+      }
+    }
+    */
+
+    function startNewCampaign() {
+      // Reset state
+      state.currentCampaignId = null;
+      state.campaignStartTime = null;
+      if (state.timerInterval) clearInterval(state.timerInterval);
+      if (state.progressInterval) clearInterval(state.progressInterval);
+
+      // Hide sections
+      document.getElementById('status-section').classList.add('hidden');
+      document.getElementById('results-section').classList.add('hidden');
+
+      // Clear form
+      document.getElementById('campaign-json').value = '';
+      document.getElementById('campaign-file-upload').value = '';
+      validateJSON();
+
+      // Scroll to top
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+
+      showToast('Ready for new campaign', 'info');
+    }
+
+    function clearForm() {
+      document.getElementById('campaign-json').value = '';
+      document.getElementById('campaign-file-upload').value = '';
+      validateJSON();
+      showToast('Form cleared', 'info');
+    }
+
+    function duplicateLastCampaign() {
+      if (!state.lastCampaignData) {
+        showToast('No previous campaign to duplicate', 'error');
+        return;
+      }
+
+      const { pipeline, ...campaignData } = state.lastCampaignData;
+      
+      document.getElementById('campaign-json').value = JSON.stringify(campaignData, null, 2);
+      if (pipeline) {
+        document.getElementById('pipeline-select').value = pipeline;
+      }
+      
+      validateJSON();
+      showToast('Last campaign duplicated', 'success');
+    }
+
+    function updateLastCampaignSummary() {
+      if (state.campaignHistory.length === 0) return;
+
+      const last = state.campaignHistory[0];
+      const summaryDiv = document.getElementById('last-campaign-summary');
+      const summaryText = document.getElementById('last-campaign-text');
+
+      summaryText.textContent = `${last.campaignId} - ${last.results.total_leads} leads (${last.results.hot_leads.count} hot) - ${last.duration}`;
+      summaryDiv.classList.remove('hidden');
+    }
+
+    function exportHistory() {
+      if (state.campaignHistory.length === 0) {
+        showToast('No campaign history to export', 'error');
+        return;
+      }
+
+      const csv = [
+        ['Campaign ID', 'Date', 'Duration', 'Total Leads', 'Hot Leads', 'Other Leads'].join(','),
+        ...state.campaignHistory.map(entry => [
+          entry.campaignId,
+          new Date(entry.timestamp).toLocaleString(),
+          entry.duration,
+          entry.results.total_leads,
+          entry.results.hot_leads.count,
+          entry.results.other_leads.count
+        ].join(','))
+      ].join('\n');
+
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `campaign-history-${Date.now()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      showToast('Campaign history exported', 'success');
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      
+      const colors = {
+        success: 'bg-green-500',
+        error: 'bg-red-500',
+        warning: 'bg-yellow-500',
+        info: 'bg-blue-500'
+      };
+
+      const toast = document.createElement('div');
+      toast.className = `toast ${colors[type]} text-white px-6 py-3 rounded-lg shadow-lg max-w-sm`;
+      toast.textContent = message;
+
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.3s';
+        setTimeout(() => toast.remove(), 300);
+      }, 5000);
+    }
+
+    // File Upload and Conversion Functions
+    async function handleCampaignFileUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      // Validate file size (10MB max)
+      const maxSize = 10 * 1024 * 1024;
+      if (file.size > maxSize) {
+        showToast('File size must be less than 10MB', 'error');
+        return;
+      }
+
+      // Validate file type
+      const validExtensions = ['.json', '.csv', '.xlsx', '.xls', '.docx', '.doc'];
+      const fileName = file.name.toLowerCase();
+      const isValid = validExtensions.some(ext => fileName.endsWith(ext));
+      
+      if (!isValid) {
+        showToast('Unsupported file type. Please upload JSON, CSV, Excel, or Word files.', 'error');
+        return;
+      }
+
+      state.uploadedFile = file;
+
+      // Show file analysis section
+      document.getElementById('file-analysis-section').classList.remove('hidden');
+      document.getElementById('file-preview').classList.add('hidden');
+      document.getElementById('detected-data').classList.add('hidden');
+      document.getElementById('conversion-results').classList.add('hidden');
+      document.getElementById('conversion-status').classList.add('hidden');
+      document.getElementById('use-conversion-btn').disabled = true;
+
+      // Display file info
+      const fileType = getFileType(fileName);
+      const fileIcon = getFileIcon(fileType);
+      
+      document.getElementById('file-icon').textContent = fileIcon;
+      document.getElementById('file-name-display').textContent = file.name;
+      document.getElementById('file-size-display').textContent = formatFileSize(file.size);
+
+      // Read and preview file
+      try {
+        await previewFile(file, fileType);
+        showToast('File uploaded successfully. Click "Convert with AI" to process.', 'success');
+      } catch (e) {
+        showToast(`Error reading file: ${e.message}`, 'error');
+      }
+    }
+
+    function getFileType(fileName) {
+      if (fileName.endsWith('.json')) return 'json';
+      if (fileName.endsWith('.csv')) return 'csv';
+      if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) return 'xlsx';
+      if (fileName.endsWith('.docx') || fileName.endsWith('.doc')) return 'docx';
+      return 'unknown';
+    }
+
+    function getFileIcon(fileType) {
+      const icons = {
+        json: '📄',
+        csv: '📊',
+        xlsx: '📈',
+        docx: '📝'
+      };
+      return icons[fileType] || '📄';
+    }
+
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    async function previewFile(file, fileType) {
+      const previewSection = document.getElementById('file-preview');
+      const previewContent = document.getElementById('file-preview-content');
+
+      if (fileType === 'json') {
+        const text = await file.text();
+        state.fileData = text;
+        previewContent.textContent = text.substring(0, 500) + (text.length > 500 ? '...' : '');
+        previewSection.classList.remove('hidden');
+      } else if (fileType === 'csv') {
+        const text = await file.text();
+        state.fileData = text;
+        const lines = text.split('\n').slice(0, 5);
+        previewContent.innerHTML = lines.map(line => 
+          `<div class="whitespace-nowrap overflow-x-auto">${escapeHtml(line)}</div>`
+        ).join('');
+        previewSection.classList.remove('hidden');
+      } else if (fileType === 'xlsx') {
+        const arrayBuffer = await file.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+        
+        state.fileData = btoa(String.fromCharCode.apply(null, new Uint8Array(arrayBuffer)));
+        
+        const preview = jsonData.slice(0, 5).map(row => 
+          row.slice(0, 5).join(' | ')
+        ).join('\n');
+        previewContent.textContent = preview + '\n...';
+        previewSection.classList.remove('hidden');
+      } else if (fileType === 'docx') {
+        const arrayBuffer = await file.arrayBuffer();
+        state.fileData = btoa(String.fromCharCode.apply(null, new Uint8Array(arrayBuffer)));
+        
+        // For Word files, we'll show a placeholder since full text extraction requires complex parsing
+        previewContent.textContent = '[Word document content - will be processed by AI]';
+        previewSection.classList.remove('hidden');
+      }
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // NOTE: The 'Convert with AI' button is removed from HTML, so this function is no longer called.
+    // Keeping it for completeness if the user re-adds the button later.
+    async function convertFile() {
+      if (!state.uploadedFile) {
+        showToast('No file uploaded', 'error');
+        return;
+      }
+
+      const fileType = getFileType(state.uploadedFile.name.toLowerCase());
+      
+      // Show conversion status
+      document.getElementById('conversion-status').classList.remove('hidden');
+      document.getElementById('conversion-results').classList.add('hidden');
+      // document.getElementById('convert-file-btn').disabled = true; // Button is removed
+
+      if (state.demoMode) {
+        // Demo mode - simulate conversion
+        await simulateFileConversion(fileType);
+      } else {
+        // Real mode - call webhook
+        await callConversionWebhook(fileType);
+      }
+    }
+
+    async function simulateFileConversion(fileType) {
+      const steps = [
+        { progress: 20, text: '📤 Uploading file...', delay: 800 },
+        { progress: 50, text: '🔄 Analyzing with AI...', delay: 1500 },
+        { progress: 80, text: '⚙️ Converting to campaign format...', delay: 1200 },
+        { progress: 100, text: '✅ Conversion completed!', delay: 500 }
+      ];
+
+      for (const step of steps) {
+        document.getElementById('conversion-status-text').textContent = step.text;
+        document.getElementById('conversion-progress-bar').style.width = step.progress + '%';
+        await new Promise(resolve => setTimeout(resolve, step.delay));
+      }
+
+      // Simulate detected data
+      document.getElementById('detected-campaign-name').textContent = 'Simulated Campaign';
+      document.getElementById('detected-industry').textContent = 'Software';
+      document.getElementById('detected-location').textContent = 'San Francisco';
+      document.getElementById('detected-rows').textContent = '50';
+      document.getElementById('detected-data').classList.remove('hidden');
+
+      // Simulate converted JSON
+      const convertedJSON = JSON.stringify({
+        campaign_name: "Simulated Campaign",
+        industry: "Software",
+        location: "San Francisco",
+        company_size: "51-200",
+        scraping_sources: ["linkedin", "company_website"]
+      }, null, 2);
+      state.convertedJSON = convertedJSON;
+
+      // Show results
+      document.getElementById('conversion-results').classList.remove('hidden');
+      document.getElementById('use-conversion-btn').disabled = false;
+      // document.getElementById('convert-file-btn').disabled = false; // Button is removed
+    }
+
+    async function callConversionWebhook(fileType) {
+      const formData = new FormData();
+      formData.append('file', state.uploadedFile);
+      formData.append('fileType', fileType);
+
+      try {
+        document.getElementById('conversion-status-text').textContent = '📤 Uploading file...';
+        document.getElementById('conversion-progress-bar').style.width = '20%';
+
+        const response = await fetch(`${N8N_WEBHOOK_URL}/convert-file`, {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        document.getElementById('conversion-status-text').textContent = '🔄 Analyzing with AI...';
+        document.getElementById('conversion-progress-bar').style.width = '50%';
+
+        const result = await response.json();
+
+        document.getElementById('conversion-status-text').textContent = '⚙️ Converting to campaign format...';
+        document.getElementById('conversion-progress-bar').style.width = '80%';
+
+        // Assuming the result contains the converted JSON and detected data
+        const convertedJSON = result.converted_json;
+        const detectedData = result.detected_data;
+
+        if (!convertedJSON) {
+          throw new Error('Conversion failed: No JSON returned.');
+        }
+
+        state.convertedJSON = convertedJSON;
+
+        // Update detected data display
+        document.getElementById('detected-campaign-name').textContent = detectedData.campaign_name || '-';
+        document.getElementById('detected-industry').textContent = detectedData.industry || '-';
+        document.getElementById('detected-location').textContent = detectedData.location || '-';
+        document.getElementById('detected-rows').textContent = detectedData.rows || '-';
+        document.getElementById('detected-data').classList.remove('hidden');
+
+        document.getElementById('conversion-status-text').textContent = '✅ Conversion completed!';
+        document.getElementById('conversion-progress-bar').style.width = '100%';
+
+        // Show results
+        document.getElementById('conversion-results').classList.remove('hidden');
+        document.getElementById('use-conversion-btn').disabled = false;
+        // document.getElementById('convert-file-btn').disabled = false; // Button is removed
+        showToast('File converted successfully!', 'success');
+
+      } catch (e) {
+        document.getElementById('conversion-status-text').textContent = '❌ Conversion failed!';
+        document.getElementById('conversion-progress-bar').style.width = '0%';
+        // document.getElementById('convert-file-btn').disabled = false; // Button is removed
+        showToast(`Error converting file: ${e.message}`, 'error');
+        console.error('Conversion error:', e);
+      }
+    }
+
+    function useConvertedJSON() {
+      if (state.convertedJSON) {
+        document.getElementById('campaign-json').value = state.convertedJSON;
+        validateJSON();
+        document.getElementById('file-analysis-section').classList.add('hidden');
+        document.getElementById('campaign-file-upload').value = '';
+        showToast('Converted JSON loaded into configuration', 'success');
+      } else {
+        showToast('No converted JSON available', 'error');
+      }
+    }
+
+    // Initial setup
+    document.addEventListener('DOMContentLoaded', () => {
+      validateJSON();
+      loadSampleJSON();
+      
+      // Drag and drop functionality
+      const dropZone = document.getElementById('file-drop-zone');
+      const fileInput = document.getElementById('campaign-file-upload');
+
+      dropZone.addEventListener('click', () => fileInput.click());
+      
+      ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+      });
+
+      function preventDefaults (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+
+      ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, highlight, false);
+      });
+
+      ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, unhighlight, false);
+      });
+
+      function highlight() {
+        dropZone.classList.add('border-blue-600', 'bg-blue-50');
+      }
+
+      function unhighlight() {
+        dropZone.classList.remove('border-blue-600', 'bg-blue-50');
+      }
+
+      dropZone.addEventListener('drop', handleDrop, false);
+
+      function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        
+        fileInput.files = files;
+        handleCampaignFileUpload({ target: fileInput });
+      }
+    });
+  </script>
+  <!-- Embedded Email Template from emailTemplate.html -->
+  <template id="embedded-email-template"><!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8">
@@ -491,529 +1613,323 @@ LEAD GENERATION DASHBOARD
       }
       img { border: 0; outline: none; text-decoration: none; display: block; }
       a { text-decoration: none; }
+        @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
     </style>
   </head>
   <body style="margin:0; padding:0; background-color:#e5f0ff;">
-    <div style="padding: 40px; text-align: center; color: #666; font-family: sans-serif;">
-        [Email Template Preview Mode]<br><br>
-        This preview renders the 'emailTemplate.html' structure.<br>
-        Variables like {{CompanyName}} would be replaced in a real send.
-    </div>
-    <!-- In a real app, this would be the full HTML from the uploaded file -->
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#e5f0ff;">
       <tr>
         <td align="center" style="padding:24px 12px;">
+          <!-- Main container -->
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:600px; background-color:#ffffff; border-radius:16px; overflow:hidden; box-shadow:0 10px 30px rgba(15,23,42,0.08);">
+            
+            <!-- Brand header / hero -->
             <tr>
               <td style="background:linear-gradient(135deg,#eff6ff,#bfdbfe 40%,#60a5fa 100%); padding:22px 22px 18px 22px; color:#0f172a;">
-                  <h1 style="margin:0; font-size:22px; line-height:1.4; color:#0f172a;">
-                    Audit Report – {{CompanyName}}
-                  </h1>
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                  <tr>
+                    <td align="left" style="display:flex; align-items:center; gap:10px;">
+                      <img src="https://i.ibb.co/nNZgszLT/fa429d46-6282-476d-bf84-ad0060c77d64-removebg-preview.png" alt="BritSyncAI" width="110" style="height:auto;">
+                    </td>
+                    <td align="right" style="font-size:11px; color:#1e293b;">
+                      Audit Report · {{today_date}}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td colspan="2" style="padding-top:18px;">
+                      <h1 style="margin:0; font-size:22px; line-height:1.4; color:#0f172a;">
+                        Audit Report – {{CompanyName}}
+                      </h1>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td colspan="2" style="padding-top:10px; font-size:13px; line-height:1.6; color:#1f2937;">
+                      Independent review of your operations, team workflow, financial efficiency, and digital performance, with a focus on where AI automation can remove friction and unlock growth.
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- Hero metrics strip -->
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top:18px; background-color:#ffffff; border-radius:12px; border:1px solid #dbeafe;">
+                  <tr>
+                    <td style="padding:12px 14px;">
+                      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                        <tr>
+                          <td width="33%" align="left" style="font-size:11px; text-transform:uppercase; color:#64748b;">
+                            Potential annual saving
+                            <div style="margin-top:4px; font-size:16px; font-weight:600; color:#ea580c;">
+                              {{estimated_saving}}
+                            </div>
+                          </td>
+                          <td width="34%" align="center" style="font-size:11px; text-transform:uppercase; color:#64748b; border-left:1px solid #e5e7eb; border-right:1px solid #e5e7eb; padding:0 10px;">
+                            Hours freed / month
+                            <div style="margin-top:4px; font-size:16px; font-weight:600; color:#16a34a;">
+                              {{hours_freed_per_month}}
+                            </div>
+                          </td>
+                          <td width="33%" align="right" style="font-size:11px; text-transform:uppercase; color:#64748b;">
+                            Efficiency uplift
+                            <div style="margin-top:4px; font-size:16px; font-weight:600; color:#2563eb;">
+                              {{efficiency_uplift}}%
+                            </div>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+
               </td>
             </tr>
+
+            <!-- Greeting & intro -->
             <tr>
               <td style="padding:22px 24px 8px 24px; background-color:#ffffff;">
-                <p style="font-size:14px; line-height:1.7; color:#4b5563;">
-                  Hi {{Name}},<br><br>We’ve just completed an independent audit on {{CompanyName}}. This is a preview of the email template.
+                <p style="font-size:14px; line-height:1.7; color:#0f172a; margin:0 0 10px 0;">
+                  Hi {{Name}},
+                </p>
+                <p style="font-size:14px; line-height:1.7; color:#4b5563; margin:0 0 12px 0;">
+                  We’ve just completed an independent audit on {{CompanyName}}, focusing on your operations, team workflow, financial efficiency, and digital performance.
+                </p>
+                <p style="font-size:14px; line-height:1.7; color:#4b5563; margin:0 0 12px 0;">
+                  This isn’t a generic report—it highlights real blind spots most companies with 20+ employees don’t notice until it starts costing them money.
+                </p>
+                <p style="font-size:14px; line-height:1.7; color:#4b5563; margin:0 0 12px 0;">
+                  Below is a summary of your findings. The full audit PDF with detailed workflows, screenshots, and recommendations is attached to this email and available via the button below.
                 </p>
               </td>
             </tr>
+
+            <!-- Inserted AI report block -->
+            <tr>
+              <td style="padding:0 24px 12px 24px; background-color:#ffffff;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f1f5f9; border-radius:10px; padding:14px; border:1px solid #e2e8f0;">
+                  <tr>
+                    <td style="font-size:13px; color:#111827; line-height:1.7;">
+                      {{FULL_AI_REPORT_HTML}}
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Key findings visual section -->
+            <tr>
+              <td style="padding:10px 24px 6px 24px; background-color:#ffffff;">
+                <h2 style="margin:0 0 10px 0; font-size:15px; color:#0f172a;">
+                  🔍 Key findings from the audit
+                </h2>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:0 18px 18px 18px; background-color:#ffffff;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                  <tr>
+                    <td style="width:50%; padding:8px;">
+                      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#eff6ff; border-radius:10px; padding:12px;">
+                        <tr>
+                          <td style="font-size:12px; font-weight:600; color:#1d4ed8; margin-bottom:4px;">
+                            Workflow bottlenecks
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="font-size:13px; color:#1f2937; line-height:1.6;">
+                            Hidden gaps in workflow slowing down productivity and creating unnecessary handoffs.
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                    <td style="width:50%; padding:8px;">
+                      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#fee2e2; border-radius:10px; padding:12px;">
+                        <tr>
+                          <td style="font-size:12px; font-weight:600; color:#b91c1c;">
+                            Revenue leak risks
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="font-size:13px; color:#7f1d1d; line-height:1.6;">
+                            Outdated processes and manual steps that increase error risk and slow billing or cash collection.
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="width:50%; padding:8px;">
+                      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#e0f2fe; border-radius:10px; padding:12px;">
+                        <tr>
+                          <td style="font-size:12px; font-weight:600; color:#0369a1;">
+                            Missed automation upside
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="font-size:13px; color:#0f172a; line-height:1.6;">
+                            Missed opportunities in customer retention, reporting, and internal operations that could be automated.
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                    <td style="width:50%; padding:8px;">
+                      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#ecfeff; border-radius:10px; padding:12px;">
+                        <tr>
+                          <td style="font-size:12px; font-weight:600; color:#0e7490;">
+                            Digital system gaps
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="font-size:13px; color:#0f172a; line-height:1.6;">
+                            Weak or fragmented digital systems reducing efficiency and visibility across teams.
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td colspan="2" style="padding:8px;">
+                      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#ecfdf5; border-radius:10px; padding:12px;">
+                        <tr>
+                          <td style="font-size:12px; font-weight:600; color:#15803d;">
+                            Where AI helps immediately
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="font-size:13px; color:#065f46; line-height:1.6;">
+                            Clear areas where AI and automation can increase performance and reduce cost by removing repetitive manual tasks and integrating tools.
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- What this means -->
+            <tr>
+              <td style="padding:4px 24px 14px 24px; background-color:#ffffff;">
+                <h2 style="margin:0 0 8px 0; font-size:15px; color:#0f172a;">
+                  What this means for {{CompanyName}}
+                </h2>
+                <p style="font-size:14px; line-height:1.7; color:#4b5563; margin:0 0 8px 0;">
+                  Right now, {{CompanyName}} is operating below its potential—but the issues are fixable.
+                </p>
+                <p style="font-size:14px; line-height:1.7; color:#4b5563; margin:0 0 8px 0;">
+                  When similar companies solve these gaps, they usually see:
+                </p>
+                <ul style="margin:0 0 8px 18px; padding:0; color:#374151; font-size:14px; line-height:1.6;">
+                  <li>Lower operational cost</li>
+                  <li>Faster team output</li>
+                  <li>Better financial transparency</li>
+                  <li>Higher customer satisfaction</li>
+                  <li>Smoother day‑to‑day operations</li>
+                </ul>
+              </td>
+            </tr>
+
+            <!-- Our offer section -->
+            <tr>
+              <td style="padding:4px 24px 18px 24px; background-color:#ffffff;">
+                <h2 style="margin:0 0 8px 0; font-size:15px; color:#0f172a;">
+                  Our offer from BritSyncAI
+                </h2>
+                <p style="font-size:14px; line-height:1.7; color:#4b5563; margin:0 0 8px 0;">
+                  We provide a Complete Business Efficiency Audit + AI Implementation Plan, where we:
+                </p>
+                <ul style="margin:0 0 8px 18px; padding:0; color:#374151; font-size:14px; line-height:1.6;">
+                  <li>Fix the identified problems</li>
+                  <li>Build automated processes around your existing tools</li>
+                  <li>Improve team workflows and approvals</li>
+                  <li>Enhance digital efficiency and data visibility</li>
+                  <li>Reduce workload and cost through AI and automation</li>
+                </ul>
+                <p style="font-size:14px; line-height:1.7; color:#4b5563; margin:0;">
+                  This is designed for companies that want clear improvement, not guesswork.
+                </p>
+              </td>
+            </tr>
+
+            <!-- Download audit CTA strip -->
+            <tr>
+              <td style="background-color:#dbeafe; padding:18px 24px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                  <tr>
+                    <td valign="middle" style="color:#1e293b; font-size:13px; line-height:1.6;">
+                      <strong style="display:block; font-size:14px; color:#0f172a;">
+                        Full audit attached
+                      </strong>
+                      Your detailed report is attached as a PDF and can also be downloaded securely here.
+                    </td>
+                    <td align="right" valign="middle" style="padding-left:12px;">
+                      <a href="{{audit_pdf_url}}" style="display:inline-block; background-color:#2563eb; color:#ffffff; font-size:13px; font-weight:600; padding:10px 18px; border-radius:999px;">
+                        Download audit (PDF)
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Next step / schedule meeting -->
+            <tr>
+              <td style="padding:20px 24px 18px 24px; background-color:#ffffff;">
+                <h2 style="margin:0 0 8px 0; font-size:15px; color:#0f172a;">
+                  📅 Next step
+                </h2>
+                <p style="font-size:14px; line-height:1.7; color:#4b5563; margin:0 0 10px 0;">
+                  If you want us to break down your report in detail and build a full improvement plan for {{CompanyName}}:
+                </p>
+                <p style="font-size:14px; line-height:1.7; color:#4b5563; margin:0 0 12px 0;">
+                  Just reply to this email or schedule a discovery call and we’ll arrange everything for you.
+                </p>
+                <p style="margin:0 0 16px 0;">
+                  <a href="{{booking_url}}" style="display:inline-block; background-color:#0ea5e9; color:#f9fafb; font-size:14px; font-weight:500; padding:10px 20px; border-radius:999px;">
+                    Schedule meeting
+                  </a>
+                </p>
+              </td>
+            </tr>
+
+            <!-- Need help strip -->
+            <tr>
+              <td style="background-color:#e0f2fe; padding:18px 24px; text-align:center; color:#0f172a;">
+                <div style="font-size:26px; margin-bottom:8px;">🤖</div>
+                <div style="font-size:15px; font-weight:600; margin-bottom:4px;">
+                  Need help unlocking AI inside {{CompanyName}}?
+                </div>
+                <div style="font-size:13px; line-height:1.6; max-width:380px; margin:0 auto 10px auto;">
+                  Reply to this email or click “Schedule meeting” above and the BritSyncAI team will map out the fastest automation wins for your operations.
+                </div>
+                <div style="font-size:11px; letter-spacing:0.04em; text-transform:uppercase; opacity:0.9;">
+                  BritSyncAI · AI Business Transformation
+                </div>
+              </td>
+            </tr>
+
+            <!-- Footer with logo -->
+            <tr>
+              <td style="background-color:#e5f0ff; padding:16px 24px; text-align:center;">
+                <div style="margin-bottom:8px;">
+                  <img src="https://i.ibb.co/nNZgszLT/fa429d46-6282-476d-bf84-ad0060c77d64-removebg-preview.png" alt="BritSyncAI" width="120" style="height:auto; margin:0 auto;">
+                </div>
+                <p style="font-size:11px; line-height:1.6; color:#6b7280; margin:0;">
+                  Best regards,<br>
+                  BritSync International — AI Business Transformation Team<br><br>
+                  You’re receiving this email because you requested or agreed to an automation audit from BritSyncAI.<br>
+                  BritSync Global Services Ltd · Barry, Wales · {{sender_email}}
+                </p>
+              </td>
+            </tr>
+
           </table>
         </td>
       </tr>
     </table>
   </body>
-</html>`;
+</html>
+</template>
 
-    function previewEmailTemplate() {
-        const modal = document.getElementById('email-modal');
-        const iframe = document.getElementById('email-preview-iframe');
-        
-        modal.classList.remove('hidden');
-        
-        // Write the template into the iframe
-        const doc = iframe.contentWindow.document;
-        doc.open();
-        doc.write(RAW_EMAIL_TEMPLATE);
-        doc.close();
-    }
-
-    function closeEmailModal() {
-        document.getElementById('email-modal').classList.add('hidden');
-    }
-
-
-    // ========================================
-    // CAMPAIGN EXECUTION LOGIC
-    // ========================================
-
-    async function runCampaign() {
-      const jsonInput = document.getElementById('campaign-json').value;
-      const pipeline = document.getElementById('pipeline-select').value;
-      
-      document.getElementById('status-section').classList.remove('hidden');
-      document.getElementById('results-section').classList.add('hidden');
-      
-      // Reset Logs
-      const logContainer = document.getElementById('terminal-log');
-      logContainer.innerHTML = '<div class="opacity-50">> Initializing campaign...</div>';
-      
-      try {
-        const campaignData = JSON.parse(jsonInput);
-        
-        // UI State: Running
-        updateProgress(5, 'Initializing', 'Validating parameters...');
-
-        if (state.demoMode) {
-          simulateCampaignExecution(pipeline);
-        } else {
-          // Real Execution with Stream Reading
-          const response = await fetch(N8N_WEBHOOK_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              campaign: campaignData,
-              pipeline: pipeline,
-              timestamp: new Date().toISOString()
-            })
-          });
-
-          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
-          // Read response stream
-          const reader = response.body.getReader();
-          const decoder = new TextDecoder();
-          let buffer = '';
-
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            
-            const chunk = decoder.decode(value, { stream: true });
-            buffer += chunk;
-            
-            // Check for specific status messages in the chunk
-            // We check the chunk (or tail of buffer) for keywords
-            
-            if (buffer.includes("Getting Leads...")) {
-                // Use a flag to prevent repeating the same log if stream sends it in small parts
-                // For simplicity here we just check existence in buffer and assume order
-                // In a robust real implementation we would consume lines.
-                // Here we just update progress based on keywords present.
-                // To make it 'feel' live, we can check if we haven't logged it yet
-                if(!state.loggedGettingLeads) {
-                    updateProgress(20, "Getting Leads...🔥");
-                    logToTerminal("Getting Leads...🔥");
-                    state.loggedGettingLeads = true;
-                }
-            }
-            
-            if (buffer.includes("Ranking Hot Leads...")) {
-                 if(!state.loggedRanking) {
-                    updateProgress(50, "Ranking Hot Leads...🔥🔥🔥");
-                    logToTerminal("Ranking Hot Leads...🔥🔥🔥");
-                    state.loggedRanking = true;
-                 }
-            }
-            
-            if (buffer.includes("Saving Leads")) {
-                 // Try to extract the iteration number
-                 // Regex for Saving Leads...🔥🔥🔥(1)
-                 const match = buffer.match(/Saving Leads.*\((\d+)\)/);
-                 let count = match ? match[1] : '';
-                 let msg = `Saving Leads in Google sheet...🔥🔥🔥${count ? `(${count})` : ''}`;
-                 
-                 // Only log if changed or just log anyway as it updates count
-                 // We'll just update the status text
-                 updateProgress(80, msg);
-                 // Optional: log only once or every time? Let's just log the last one
-                 // logToTerminal(msg); 
-            }
-          }
-          
-          // Stream finished. The buffer now contains "Text...Text...JSON"
-          // We need to extract the final JSON payload.
-          // It likely starts with '[' or '{' after the text messages.
-          
-          // Find the last occurrence of a valid JSON start char?
-          // Or just find the first '[' or '{' that allows valid parsing?
-          // The text messages don't contain raw JSON usually.
-          
-          let jsonStartIndex = buffer.indexOf('[');
-          // If not found or if there is an object '{' that appears before '[' (e.g. wrapper)
-          // But user said it returns array mostly. Let's be safe.
-          let objStartIndex = buffer.indexOf('{');
-          
-          let startIndex = -1;
-          if(jsonStartIndex !== -1 && objStartIndex !== -1) {
-              startIndex = Math.min(jsonStartIndex, objStartIndex);
-          } else if (jsonStartIndex !== -1) {
-              startIndex = jsonStartIndex;
-          } else {
-              startIndex = objStartIndex;
-          }
-
-          if (startIndex !== -1) {
-              const jsonString = buffer.substring(startIndex);
-              try {
-                  const result = JSON.parse(jsonString);
-                  // Process result
-                  processResults(result, pipeline);
-              } catch (e) {
-                  console.error("JSON Parse Error on extracted string", e);
-                  // If simple parse fails, maybe the stream contains multiple JSON objects?
-                  // Or maybe there's trailing text?
-                  // Let's try to find the *last* complete JSON if it's ndjson-like
-                  // But assuming standard n8n response behavior (one final JSON)
-                  throw new Error("Failed to parse final campaign data from stream.");
-              }
-          } else {
-              throw new Error("No JSON data found in response stream.");
-          }
-          
-          // Reset state flags for next run
-          state.loggedGettingLeads = false;
-          state.loggedRanking = false;
-        }
-
-      } catch (e) {
-        logToTerminal('Error: ' + e.message, 'text-red-500');
-        showToast('Campaign failed: ' + e.message, 'error');
-      }
-    }
-    
-    // Visual simulation of the specific text steps requested
-    function simulateWebhookProgressSteps() {
-        let steps = [
-            { pct: 20, msg: "Getting Leads...🔥" },
-            { pct: 50, msg: "Ranking Hot Leads...🔥🔥🔥" },
-            { pct: 80, msg: "Saving Leads in Google sheet...🔥🔥🔥(1)" }
-        ];
-        
-        let i = 0;
-        let interval = setInterval(() => {
-            if (i >= steps.length) {
-                clearInterval(interval);
-                return;
-            }
-            updateProgress(steps[i].pct, steps[i].msg, "Processing...");
-            logToTerminal(steps[i].msg);
-            i++;
-        }, 1500); // Update every 1.5s
-    }
-
-    function simulateCampaignExecution(pipeline) {
-        // Mock data based on pipeline
-        simulateWebhookProgressSteps();
-        
-        setTimeout(() => {
-            let mockData = [];
-            if (pipeline === 'google_maps_business_search') {
-                mockData = [
-                     { "lead_number": 1, "business_name": "Tech Corp", "classification": "Hot", "email": "contact@tech.com", "phone": "123456", "website_url": "http://tech.com", "rating": 4.5 },
-                     { "lead_number": 2, "business_name": "Old Bakery", "classification": "Cold", "email": "", "phone": "987654", "website_url": "http://bakery.com", "rating": 3.2 }
-                ];
-            } else if (pipeline === 'instagram_influencer_search') {
-                 mockData = [
-                     { "Lead Number": 1, "Name": "Sara Beauty", "Classification": "Hot", "email": "sara@social.com", "URLs": ["http://insta.com/sara"], "Avg ER": 0.05 },
-                     { "Lead Number": 2, "Name": "John Doe", "Classification": "Cold", "email": "john@gmail.com", "URLs": ["http://insta.com/john"], "Avg ER": 0.01 }
-                ];
-            } else {
-                // Local business mock
-                 mockData = [
-                     { "lead_number": 1, "business_name": "Fast Plumbers", "classification": "Hot", "email": "info@plumb.com", "website_url": "http://plumb.com" },
-                     { "lead_number": 2, "business_name": "Slow Fix", "classification": "Cold", "email": "admin@fix.com", "website_url": "http://fix.com" }
-                ];
-            }
-            
-            processResults(mockData, pipeline);
-        }, 5000);
-    }
-
-    function updateProgress(percent, status, detail) {
-        document.getElementById('progress-bar').style.width = `${percent}%`;
-        document.getElementById('progress-percentage').textContent = `${percent}%`;
-        document.getElementById('status-text').textContent = status;
-    }
-
-    function logToTerminal(msg, colorClass = 'text-green-400') {
-        const log = document.getElementById('terminal-log');
-        const entry = document.createElement('div');
-        entry.className = `mb-1 ${colorClass}`;
-        entry.textContent = `> ${msg}`;
-        log.appendChild(entry);
-        log.scrollTop = log.scrollHeight;
-    }
-
-    // ========================================
-    // RESULT PROCESSING & RENDERING
-    // ========================================
-
-    function processResults(data, pipeline) {
-        updateProgress(100, 'Completed', 'Rendering dashboard...');
-        
-        // Data Normalization based on format
-        // We handle the 3 formats provided: Companies, Gmaps, SocialMedia
-        
-        // Check structure. The incoming data might be { rows: [...] } or just [...]
-        let rows = Array.isArray(data) ? data : (data.rows || data.leads || []);
-        
-        if (rows.length === 0) {
-            showToast("No leads found in response", "error");
-            return;
-        }
-
-        let hot = [];
-        let other = [];
-        
-        // Normalization Map
-        // We map diverse keys to a standard set for display: Name, Class, Email, Link, Extra1
-        const normalized = rows.map(row => {
-            // Detect Format
-            let std = { original: row };
-            
-            // Determine Classification (Case insensitive)
-            let cls = (row.classification || row.Classification || 'Cold').toLowerCase();
-            std.isHot = cls.includes('hot');
-            std.classification = row.classification || row.Classification || cls;
-            
-            // Determine Name
-            std.name = row.business_name || row.Name || row.title || "Unknown";
-            
-            // Determine Email (string or array)
-            let rawEmail = row.email || row.emails || row.Email || "";
-            std.email = Array.isArray(rawEmail) ? rawEmail[0] : rawEmail;
-            
-            // Determine URL
-            let rawUrl = row.website_url || row.website || row.URLs || row.url || "";
-            std.url = Array.isArray(rawUrl) ? rawUrl[0] : rawUrl;
-            
-            return std;
-        });
-
-        hot = normalized.filter(i => i.isHot);
-        other = normalized.filter(i => !i.isHot);
-        
-        state.hotLeads = hot;
-        state.otherLeads = other;
-        state.allLeads = normalized;
-
-        // Update Counts
-        document.getElementById('hot-leads-count').textContent = hot.length;
-        document.getElementById('tab-hot-count').textContent = hot.length;
-        document.getElementById('other-leads-count').textContent = other.length;
-        document.getElementById('tab-other-count').textContent = other.length;
-        document.getElementById('total-leads').textContent = normalized.length;
-
-        // Render Tables
-        renderTable('hot-leads-table', hot, pipeline);
-        renderTable('other-leads-table', other, pipeline);
-
-        // Show Results
-        setTimeout(() => {
-            document.getElementById('status-section').classList.add('hidden');
-            document.getElementById('results-section').classList.remove('hidden');
-            window.scrollTo({ top: document.getElementById('results-section').offsetTop, behavior: 'smooth' });
-        }, 1000);
-    }
-
-    function renderTable(containerId, data, pipeline) {
-        const container = document.getElementById(containerId);
-        if (data.length === 0) {
-            container.innerHTML = `<div class="p-8 text-center text-gray-500">No leads in this category.</div>`;
-            return;
-        }
-
-        // Dynamic Columns based on pipeline/format
-        // We stripped Action, Relevance Score, Keywords as requested
-        let headers = ['Name', 'Classification', 'Email', 'Link'];
-        
-        // Add specific columns based on pipeline context found in data
-        // Check first item to see what we have
-        const sample = data[0].original;
-        
-        let extraColKey = null;
-        let extraColLabel = "";
-
-        if (sample.hasOwnProperty('Avg ER')) {
-             headers.push('Engagement Rate');
-             extraColKey = 'Avg ER';
-        } else if (sample.hasOwnProperty('primary_phone_number')) {
-             headers.push('Phone');
-             extraColKey = 'primary_phone_number';
-        }
-
-        let html = `
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-                <tr>
-                    ${headers.map(h => `<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${h}</th>`).join('')}
-                </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-        `;
-
-        data.forEach(row => {
-            let linkHtml = row.url ? `<a href="${row.url}" target="_blank" class="text-blue-600 hover:text-blue-800"><i class="fas fa-external-link-alt"></i></a>` : `<span class="text-gray-400">-</span>`;
-            let emailHtml = row.email ? `<span class="text-gray-700">${row.email}</span>` : `<span class="text-gray-400 text-xs italic">None</span>`;
-            let badgeColor = row.isHot ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800';
-            
-            let extraVal = "";
-            if(extraColKey) {
-                let val = row.original[extraColKey];
-                if(Array.isArray(val)) val = val[0];
-                // formatting for ER
-                if(extraColKey === 'Avg ER' && typeof val === 'number') val = (val * 100).toFixed(2) + '%';
-                extraVal = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${val || '-'}</td>`;
-            }
-
-            html += `
-                <tr>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${row.name}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">
-                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${badgeColor}">
-                            ${row.classification}
-                        </span>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${emailHtml}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${linkHtml}</td>
-                    ${extraVal}
-                </tr>
-            `;
-        });
-
-        html += `</tbody></table>`;
-        container.innerHTML = html;
-    }
-
-
-    // ========================================
-    // SEND ALL EMAILS LOGIC
-    // ========================================
-
-    async function sendAllEmails() {
-        const btn = document.getElementById('send-all-btn');
-        const pipeline = document.getElementById('pipeline-select').value;
-        
-        // Confirmation
-        if(!confirm("Are you sure you want to send emails to all valid leads found?")) return;
-
-        // Payload as requested: Only the pipeline
-        const payload = {
-            pipeline: pipeline
-        };
-
-        // UI: Fake Progress Display with "Nice Details"
-        const modal = document.getElementById('sending-modal');
-        const status = document.getElementById('sending-status');
-        const title = document.getElementById('sending-title');
-        const stepsDiv = document.getElementById('sending-steps');
-        
-        modal.classList.remove('hidden');
-        title.textContent = "Initiating Email Sequence";
-        status.textContent = "Preparing connection...";
-        stepsDiv.classList.remove('hidden');
-        
-        // Disable main button
-        btn.disabled = true;
-
-        // Start fake visual progress
-        setTimeout(() => {
-            document.getElementById('step-1').classList.remove('hidden');
-            status.textContent = "Packaging lead data...";
-        }, 800);
-
-        setTimeout(() => {
-            document.getElementById('step-2').classList.remove('hidden');
-            status.textContent = "Handshaking with mail server...";
-        }, 2000);
-
-        setTimeout(() => {
-            document.getElementById('step-3').classList.remove('hidden');
-            status.textContent = "Awaiting confirmation from webhook...";
-        }, 3500);
-
-        try {
-            // Real Call
-            const response = await fetch(EMAIL_SEND_WEBHOOK, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            
-            // We wait for the response before showing success
-            if (response.ok) {
-                // Success UI
-                title.textContent = "Sequence Started! 🚀";
-                title.classList.add('text-green-600');
-                status.textContent = "The backend has accepted the request.";
-                
-                setTimeout(() => {
-                    modal.classList.add('hidden');
-                    showToast("Emails are being sent in the background!", "success");
-                    btn.innerHTML = `<i class="fas fa-check mr-2"></i> Sent`;
-                }, 2000);
-            } else {
-                throw new Error("Server responded with error");
-            }
-            
-        } catch (e) {
-            title.textContent = "Error";
-            title.classList.add('text-red-600');
-            status.textContent = "Failed to trigger email sequence.";
-            console.error(e);
-            setTimeout(() => {
-                modal.classList.add('hidden');
-                showToast("Failed to trigger emails", "error");
-                btn.disabled = false;
-            }, 2000);
-        }
-    }
-
-
-    // ========================================
-    // UTILS
-    // ========================================
-    function clearForm() {
-        document.getElementById('campaign-json').value = '';
-        validateJSON();
-    }
-
-    function startNewCampaign() {
-        document.getElementById('results-section').classList.add('hidden');
-        document.getElementById('status-section').classList.add('hidden');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-
-    function showToast(message, type = 'info') {
-      const container = document.getElementById('toast-container');
-      const colors = {
-        success: 'bg-green-500',
-        error: 'bg-red-500',
-        warning: 'bg-yellow-500',
-        info: 'bg-blue-500'
-      };
-      const icon = type === 'success' ? '<i class="fas fa-check-circle mr-2"></i>' : 
-                   type === 'error' ? '<i class="fas fa-exclamation-circle mr-2"></i>' : '';
-
-      const toast = document.createElement('div');
-      toast.className = `toast ${colors[type]} text-white px-6 py-3 rounded-lg shadow-lg flex items-center mb-2`;
-      toast.innerHTML = `${icon}${message}`;
-
-      container.appendChild(toast);
-
-      setTimeout(() => {
-        toast.style.opacity = '0';
-        toast.style.transition = 'opacity 0.3s';
-        setTimeout(() => toast.remove(), 300);
-      }, 3000);
-    }
-    
-    // Init
-    window.onload = function() {
-        loadSampleJSON(); // Load initial sample
-    };
-
-  </script>
 </body>
 </html>
