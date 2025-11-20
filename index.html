@@ -602,50 +602,67 @@ LEAD GENERATION DASHBOARD
         // Finished reading
         buffer += decoder.decode(); 
         
-        // Robust JSON Extraction: Find the *last* valid JSON structure logic
-        // or better, try to find the first '[' or '{' after the last newline or distinct separator?
-        // Actually, n8n usually appends the JSON at the very end.
-        // Let's try to find the first occurrence of '[' or '{' that yields valid JSON parsing to the end of string.
-        
-        let jsonStartIndex = -1;
-        let candidates = [];
-        
-        // Collect all indices of '{' and '['
-        for(let i=0; i<buffer.length; i++) {
-            if(buffer[i] === '{' || buffer[i] === '[') candidates.push(i);
-        }
-        
+        // Robust JSON Extraction: Scan for ANY JSON structure
         let parsedResult = null;
-
-        // Try parsing from each candidate position to the end
-        // We iterate backwards to find the largest valid JSON payload at the end
-        for (let i = candidates.length - 1; i >= 0; i--) {
-            const start = candidates[i];
-            try {
-                const attempt = JSON.parse(buffer.substring(start));
-                // If successful, this is likely our data
-                parsedResult = attempt;
-                jsonStartIndex = start;
-                break; 
-            } catch (e) {
-                // Not valid JSON from this point
+        
+        // Try searching for JSON array [...] or object {...} 
+        // We scan from the end backwards to find the most likely payload
+        let bestCandidate = null;
+        
+        const bracketPairs = [['[', ']'], ['{', '}']];
+        
+        for (const pair of bracketPairs) {
+            const open = pair[0];
+            const close = pair[1];
+            
+            // Find first open bracket
+            const startIdx = buffer.indexOf(open);
+            if (startIdx !== -1) {
+                // Try to parse from startIdx to the end, or to last close bracket
+                try {
+                    // Attempt 1: Substring to end
+                    const attempt1 = JSON.parse(buffer.substring(startIdx));
+                    parsedResult = attempt1;
+                    break;
+                } catch (e) {
+                    // Attempt 2: Substring to last matching bracket
+                    const lastClose = buffer.lastIndexOf(close);
+                    if (lastClose > startIdx) {
+                         try {
+                             const attempt2 = JSON.parse(buffer.substring(startIdx, lastClose + 1));
+                             parsedResult = attempt2;
+                             break;
+                         } catch (e2) {
+                             // continue searching
+                         }
+                    }
+                }
             }
         }
 
         if (parsedResult) {
             processResults(parsedResult);
         } else {
+            // FALLBACK: NO ERROR THROWN
+            // Just show what we got in the terminal
             console.warn("Buffer content:", buffer);
+            
+            // Check if we at least got some text events
             if (buffer.includes("Getting Leads") || buffer.includes("Ranking")) {
-                 logToTerminal("Stream ended. No JSON data detected in final response.", "text-yellow-400");
-                 logToTerminal("Raw response received: " + buffer.substring(0, 200) + "...", "text-gray-400");
-                 updateProgress(100, "Completed (No Data)", "Workflow finished without returning leads.");
+                 logToTerminal("Stream finished. No final JSON detected.", "text-yellow-400");
+                 logToTerminal("Raw response received:", "text-gray-400");
+                 logToTerminal(buffer.substring(0, 500) + (buffer.length > 500 ? "..." : ""), "text-gray-500");
+                 updateProgress(100, "Campaign Ended", "Check Google Sheet or Email for results.");
             } else {
-                 logToTerminal("Workflow completed with no structured data.", "text-red-400");
+                 // Nothing received?
+                 logToTerminal("Workflow completed but returned no recognizable data.", "text-yellow-400");
+                 updateProgress(100, "Completed (No Data)", "Workflow finished.");
             }
+            // We DO NOT throw an error here, keeping the UI alive.
         }
 
       } catch (e) {
+        // Network errors are still real errors
         logToTerminal('Network Error: ' + e.message, 'text-red-500');
         showToast('Connection issue: ' + e.message, 'error');
       }
@@ -659,17 +676,13 @@ LEAD GENERATION DASHBOARD
         
         // Case 1: It's already an array
         if (Array.isArray(obj)) {
-            // If it's an array of objects, likely our leads. 
-            // If it's empty, return it. 
             if (obj.length === 0) return obj;
-            // If first item is object, assume leads.
             if (typeof obj[0] === 'object') return obj;
             return []; 
         }
         
         // Case 2: Wrapped in common keys
         if (typeof obj === 'object') {
-            // Common wrapper keys from n8n or APIs
             const keysToCheck = ['rows', 'leads', 'data', 'items', 'results', 'output', 'creators', 'businesses'];
             
             for (const key of keysToCheck) {
@@ -678,10 +691,7 @@ LEAD GENERATION DASHBOARD
                 }
             }
             
-            // Deep search: specific n8n structure [ { "json": ... } ]? 
-            // If the object looks like a single item wrapper
             if (obj.json && typeof obj.json === 'object') {
-                 // It might be just one item, or nested
                  return findLeadsArray(obj.json);
             }
         }
@@ -692,7 +702,6 @@ LEAD GENERATION DASHBOARD
     // ========================================
     // HELPER: FUZZY FIELD EXTRACTOR
     // ========================================
-    // Finds a value in a row by checking multiple possible key names
     function getField(row, possibleKeys) {
         const rowKeys = Object.keys(row);
         const rowKeysLower = rowKeys.map(k => k.toLowerCase());
@@ -728,27 +737,22 @@ LEAD GENERATION DASHBOARD
         let other = [];
         
         // 2. Universal Normalization
-        // We map diverse keys to a standard internal format but keep the original for extra columns
         const normalized = rows.map(row => {
             let std = { original: row };
             
             // Classification
-            // Look for: classification, Classification, status, type...
             const clsVal = getField(row, ['classification', 'Classification', 'status', 'lead_status']) || 'Cold';
             std.classification = clsVal;
             std.isHot = String(clsVal).toLowerCase().includes('hot');
             
             // Name
-            // Look for: business_name, Name, name, title, company, company_name, lead_name
             std.name = getField(row, ['business_name', 'Business Name', 'Name', 'name', 'title', 'company', 'company_name', 'lead_name', 'screenName']) || "Unknown";
             
             // Email
-            // Look for: email, Email, emails, contactEmail, primary_email
             let rawEmail = getField(row, ['email', 'Email', 'emails', 'contactEmail', 'primary_email']);
             std.email = Array.isArray(rawEmail) ? rawEmail[0] : (rawEmail || "");
             
             // URL
-            // Look for: website_url, website, Website, url, URL, URLs, profile_url, link
             let rawUrl = getField(row, ['website_url', 'website', 'Website', 'url', 'URL', 'URLs', 'profile_url', 'link', 'facebook_url', 'linkedin_url']);
             std.url = Array.isArray(rawUrl) ? rawUrl[0] : (rawUrl || "");
             
@@ -789,7 +793,6 @@ LEAD GENERATION DASHBOARD
         }
 
         // Dynamic Column Detection
-        // We check the first item to see what interesting fields differ from our standard set
         let headers = ['Name', 'Classification', 'Email', 'Link'];
         let extraColKey = null;
         let extraColLabel = "";
@@ -797,7 +800,7 @@ LEAD GENERATION DASHBOARD
         if (data.length > 0) {
             const sample = data[0].original;
             
-            // Define priority list of extra columns to show if available
+            // Priority list
             const extraOptions = [
                 { keys: ['Avg ER', 'avgER'], label: 'Engagement Rate' },
                 { keys: ['primary_phone_number', 'phone', 'Phone', 'phone_number'], label: 'Phone' },
@@ -812,7 +815,7 @@ LEAD GENERATION DASHBOARD
                     extraColKey = foundKey;
                     extraColLabel = opt.label;
                     headers.push(extraColLabel);
-                    break; // Only add one extra column to keep UI clean
+                    break; 
                 }
             }
         }
@@ -836,7 +839,6 @@ LEAD GENERATION DASHBOARD
             if(extraColKey) {
                 let val = row.original[extraColKey];
                 if(Array.isArray(val)) val = val[0];
-                // formatting for ER
                 if((extraColKey === 'Avg ER' || extraColKey === 'avgER') && typeof val === 'number') val = (val * 100).toFixed(2) + '%';
                 extraVal = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${val || '-'}</td>`;
             }
