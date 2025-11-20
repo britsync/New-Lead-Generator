@@ -153,8 +153,8 @@ LEAD GENERATION DASHBOARD
             <div class="relative">
                 <select id="pipeline-select" onchange="updatePipelineInJSON()" class="appearance-none w-full p-3 pl-4 pr-10 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow text-gray-700 font-medium">
                   <option value="google_maps_business_search">Google Maps Scrapper</option>
-                  <option value="local_businesses">Businesses Scraper</option>
-                  <option value="instagram_influencer_search">Social Media Scrapper</option>
+                  <option value="local_businesses">Local Business Scraper</option>
+                  <option value="instagram_influencer_search">Company / Organizations Scrapper</option>
                 </select>
                 <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
                   <i class="fas fa-chevron-down text-xs"></i>
@@ -340,9 +340,8 @@ LEAD GENERATION DASHBOARD
       emailHtml: '' // Will store the loaded email template
     };
 
-    // Email template storage - This would normally be loaded from file, 
-    // but we'll embed it in variable for the preview logic based on the uploaded file content.
-    let emailTemplateContent = ``; // Will be populated
+    // Email template storage
+    let emailTemplateContent = ``; 
 
     // ========================================
     // UI INTERACTION FUNCTIONS
@@ -383,18 +382,15 @@ LEAD GENERATION DASHBOARD
                 document.getElementById('campaign-json').value = JSON.stringify(jsonObj, null, 2);
                 validateJSON();
             } else {
-                // If empty, load the sample immediately
                 loadSampleJSON();
             }
         } catch (e) {
-            // If invalid JSON, just warn but don't break logic
-            // We won't force update invalid JSON
+            // ignore invalid JSON while editing
         }
     }
     
     function updateEmailLanguage() {
-        // Placeholder for language selection logic if needed in future
-        // Currently just visual selection
+        // Placeholder
     }
 
     function validateJSON() {
@@ -437,7 +433,6 @@ LEAD GENERATION DASHBOARD
       const pipeline = document.getElementById('pipeline-select').value;
       let sample = {};
 
-      // Sample based on pipeline as requested
       if (pipeline === "google_maps_business_search") {
           sample = {
             "pipeline": "google_maps_business_search",
@@ -461,7 +456,6 @@ LEAD GENERATION DASHBOARD
             "min_followers": 5000
           };
       } else {
-          // Fallback
            sample = {
             "pipeline": pipeline,
             "campaign_name": "Generic Campaign"
@@ -476,7 +470,6 @@ LEAD GENERATION DASHBOARD
     // EMAIL PREVIEW LOGIC
     // ========================================
     
-    // We put the template content here directly to ensure it works without external fetch
     const RAW_EMAIL_TEMPLATE = `<!doctype html>
 <html lang="en">
   <head>
@@ -499,7 +492,6 @@ LEAD GENERATION DASHBOARD
         This preview renders the 'emailTemplate.html' structure.<br>
         Variables like {{CompanyName}} would be replaced in a real send.
     </div>
-    <!-- In a real app, this would be the full HTML from the uploaded file -->
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#e5f0ff;">
       <tr>
         <td align="center" style="padding:24px 12px;">
@@ -528,10 +520,7 @@ LEAD GENERATION DASHBOARD
     function previewEmailTemplate() {
         const modal = document.getElementById('email-modal');
         const iframe = document.getElementById('email-preview-iframe');
-        
         modal.classList.remove('hidden');
-        
-        // Write the template into the iframe
         const doc = iframe.contentWindow.document;
         doc.open();
         doc.write(RAW_EMAIL_TEMPLATE);
@@ -578,21 +567,19 @@ LEAD GENERATION DASHBOARD
           })
         });
 
-        // 1. Get Stream Reader
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
-        let buffer = ''; // Stores full raw response (Text + JSON)
+        let buffer = '';
 
-        // 2. Read loop
+        // Read loop
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
             
-            // Decode chunk
             const chunk = decoder.decode(value, { stream: true });
             buffer += chunk;
             
-            // 3. Check for live events in this chunk
+            // Live event detection
             if (chunk.includes("Getting Leads...🔥")) {
                 updateProgress(20, "Getting Leads...🔥", "Scraping targets...");
                 logToTerminal("Getting Leads...🔥");
@@ -603,8 +590,6 @@ LEAD GENERATION DASHBOARD
                 logToTerminal("Ranking Hot Leads...🔥🔥🔥");
             }
             
-            // Check for "Saving Leads... (N)"
-            // Regex matches: Saving Leads in Google sheet...🔥🔥🔥(123)
             const savingMatch = chunk.match(/Saving Leads in Google sheet\.\.\.🔥🔥🔥\((\d+)\)/);
             if (savingMatch) {
                  const count = savingMatch[1];
@@ -614,49 +599,46 @@ LEAD GENERATION DASHBOARD
             }
         }
         
-        // 4. Stream Finished: Flush & Extract JSON
-        buffer += decoder.decode(); // Flush any remaining bytes
+        // Finished reading
+        buffer += decoder.decode(); 
         
-        // Robust JSON Extractor
-        // Look for the LAST occurrence of '[' or '{' just in case there is prefix text
-        // But usually we want the first occurrence of the *structure* after text logs.
+        // Robust JSON Extraction: Find the *last* valid JSON structure logic
+        // or better, try to find the first '[' or '{' after the last newline or distinct separator?
+        // Actually, n8n usually appends the JSON at the very end.
+        // Let's try to find the first occurrence of '[' or '{' that yields valid JSON parsing to the end of string.
         
-        let jsonStartIndex = buffer.indexOf('[');
-        let objStartIndex = buffer.indexOf('{');
+        let jsonStartIndex = -1;
+        let candidates = [];
         
-        // We try to find the earliest valid JSON start
-        let startIndex = -1;
-        if (jsonStartIndex !== -1 && objStartIndex !== -1) {
-            startIndex = Math.min(jsonStartIndex, objStartIndex);
-        } else if (jsonStartIndex !== -1) {
-            startIndex = jsonStartIndex;
-        } else {
-            startIndex = objStartIndex;
+        // Collect all indices of '{' and '['
+        for(let i=0; i<buffer.length; i++) {
+            if(buffer[i] === '{' || buffer[i] === '[') candidates.push(i);
+        }
+        
+        let parsedResult = null;
+
+        // Try parsing from each candidate position to the end
+        // We iterate backwards to find the largest valid JSON payload at the end
+        for (let i = candidates.length - 1; i >= 0; i--) {
+            const start = candidates[i];
+            try {
+                const attempt = JSON.parse(buffer.substring(start));
+                // If successful, this is likely our data
+                parsedResult = attempt;
+                jsonStartIndex = start;
+                break; 
+            } catch (e) {
+                // Not valid JSON from this point
+            }
         }
 
-        if (startIndex !== -1) {
-            // Extract everything from that point to the end
-            const jsonString = buffer.substring(startIndex);
-            try {
-                const result = JSON.parse(jsonString);
-                // 5. Process Final Results
-                processResults(result, pipeline);
-            } catch (e) {
-                console.warn("JSON Parse Error, attempting cleanup:", e);
-                // Soft error - Log but don't crash UI
-                logToTerminal("Warning: Data format irregular. Attempting to display raw response.", "text-yellow-400");
-                logToTerminal("Raw Buffer: " + buffer.substring(0, 100) + "...", "text-gray-500");
-            }
+        if (parsedResult) {
+            processResults(parsedResult);
         } else {
-            // SOFT FALLBACK: Do not throw Error.
-            // If we got text updates but no JSON, maybe it's just finished?
-            // We log the raw buffer to the terminal so the user can see what happened
             console.warn("Buffer content:", buffer);
-            
             if (buffer.includes("Getting Leads") || buffer.includes("Ranking")) {
-                 // We assume success but no data returned yet (maybe waiting?)
                  logToTerminal("Stream ended. No JSON data detected in final response.", "text-yellow-400");
-                 logToTerminal("Raw response received: " + buffer, "text-gray-400");
+                 logToTerminal("Raw response received: " + buffer.substring(0, 200) + "...", "text-gray-400");
                  updateProgress(100, "Completed (No Data)", "Workflow finished without returning leads.");
             } else {
                  logToTerminal("Workflow completed with no structured data.", "text-red-400");
@@ -664,117 +646,111 @@ LEAD GENERATION DASHBOARD
         }
 
       } catch (e) {
-        // Only catch network errors here
         logToTerminal('Network Error: ' + e.message, 'text-red-500');
         showToast('Connection issue: ' + e.message, 'error');
       }
     }
     
-    // Visual simulation of the specific text steps requested (Demo Mode)
-    function simulateWebhookProgressSteps() {
-        let steps = [
-            { pct: 20, msg: "Getting Leads...🔥" },
-            { pct: 50, msg: "Ranking Hot Leads...🔥🔥🔥" },
-            { pct: 80, msg: "Saving Leads in Google sheet...🔥🔥🔥(1)" }
-        ];
+    // ========================================
+    // HELPER: RECURSIVE LEAD FINDER
+    // ========================================
+    function findLeadsArray(obj) {
+        if (!obj) return [];
         
-        let i = 0;
-        let interval = setInterval(() => {
-            if (i >= steps.length) {
-                clearInterval(interval);
-                return;
-            }
-            updateProgress(steps[i].pct, steps[i].msg, "Processing...");
-            logToTerminal(steps[i].msg);
-            i++;
-        }, 1500); // Update every 1.5s
-    }
-
-    function simulateCampaignExecution(pipeline) {
-        // Mock data based on pipeline
-        simulateWebhookProgressSteps();
+        // Case 1: It's already an array
+        if (Array.isArray(obj)) {
+            // If it's an array of objects, likely our leads. 
+            // If it's empty, return it. 
+            if (obj.length === 0) return obj;
+            // If first item is object, assume leads.
+            if (typeof obj[0] === 'object') return obj;
+            return []; 
+        }
         
-        setTimeout(() => {
-            let mockData = [];
-            if (pipeline === 'google_maps_business_search') {
-                mockData = [
-                     { "lead_number": 1, "business_name": "Tech Corp", "classification": "Hot", "email": "contact@tech.com", "phone": "123456", "website_url": "http://tech.com", "rating": 4.5 },
-                     { "lead_number": 2, "business_name": "Old Bakery", "classification": "Cold", "email": "", "phone": "987654", "website_url": "http://bakery.com", "rating": 3.2 }
-                ];
-            } else if (pipeline === 'instagram_influencer_search') {
-                 mockData = [
-                     { "Lead Number": 1, "Name": "Sara Beauty", "Classification": "Hot", "email": "sara@social.com", "URLs": ["http://insta.com/sara"], "Avg ER": 0.05 },
-                     { "Lead Number": 2, "Name": "John Doe", "Classification": "Cold", "email": "john@gmail.com", "URLs": ["http://insta.com/john"], "Avg ER": 0.01 }
-                ];
-            } else {
-                // Local business mock
-                 mockData = [
-                     { "lead_number": 1, "business_name": "Fast Plumbers", "classification": "Hot", "email": "info@plumb.com", "website_url": "http://plumb.com" },
-                     { "lead_number": 2, "business_name": "Slow Fix", "classification": "Cold", "email": "admin@fix.com", "website_url": "http://fix.com" }
-                ];
+        // Case 2: Wrapped in common keys
+        if (typeof obj === 'object') {
+            // Common wrapper keys from n8n or APIs
+            const keysToCheck = ['rows', 'leads', 'data', 'items', 'results', 'output', 'creators', 'businesses'];
+            
+            for (const key of keysToCheck) {
+                if (obj[key] && Array.isArray(obj[key])) {
+                    return findLeadsArray(obj[key]); // Recurse in case of nested wrappers
+                }
             }
             
-            processResults(mockData, pipeline);
-        }, 5000);
+            // Deep search: specific n8n structure [ { "json": ... } ]? 
+            // If the object looks like a single item wrapper
+            if (obj.json && typeof obj.json === 'object') {
+                 // It might be just one item, or nested
+                 return findLeadsArray(obj.json);
+            }
+        }
+        
+        return [];
     }
-
-    function updateProgress(percent, status, detail) {
-        document.getElementById('progress-bar').style.width = `${percent}%`;
-        document.getElementById('progress-percentage').textContent = `${percent}%`;
-        document.getElementById('status-text').textContent = status;
-    }
-
-    function logToTerminal(msg, colorClass = 'text-green-400') {
-        const log = document.getElementById('terminal-log');
-        const entry = document.createElement('div');
-        entry.className = `mb-1 ${colorClass}`;
-        entry.textContent = `> ${msg}`;
-        log.appendChild(entry);
-        log.scrollTop = log.scrollHeight;
+    
+    // ========================================
+    // HELPER: FUZZY FIELD EXTRACTOR
+    // ========================================
+    // Finds a value in a row by checking multiple possible key names
+    function getField(row, possibleKeys) {
+        const rowKeys = Object.keys(row);
+        const rowKeysLower = rowKeys.map(k => k.toLowerCase());
+        
+        for (const key of possibleKeys) {
+            const lowerKey = key.toLowerCase();
+            const index = rowKeysLower.indexOf(lowerKey);
+            if (index !== -1) {
+                const val = row[rowKeys[index]];
+                if (val !== null && val !== undefined && val !== "") return val;
+            }
+        }
+        return null;
     }
 
     // ========================================
     // RESULT PROCESSING & RENDERING
     // ========================================
 
-    function processResults(data, pipeline) {
+    function processResults(rawData) {
         updateProgress(100, 'Completed', 'Rendering dashboard...');
         
-        // Data Normalization based on format
-        // We handle the 3 formats provided: Companies, Gmaps, SocialMedia
-        
-        // Check structure. The incoming data might be { rows: [...] } or just [...]
-        let rows = Array.isArray(data) ? data : (data.rows || data.leads || []);
+        // 1. Flexible Extraction
+        const rows = findLeadsArray(rawData);
         
         if (rows.length === 0) {
             showToast("No leads found in response", "error");
+            logToTerminal("Warning: Parsed JSON but found no array of leads.", "text-yellow-400");
             return;
         }
 
         let hot = [];
         let other = [];
         
-        // Normalization Map
-        // We map diverse keys to a standard set for display: Name, Class, Email, Link, Extra1
+        // 2. Universal Normalization
+        // We map diverse keys to a standard internal format but keep the original for extra columns
         const normalized = rows.map(row => {
-            // Detect Format
             let std = { original: row };
             
-            // Determine Classification (Case insensitive)
-            let cls = (row.classification || row.Classification || 'Cold').toLowerCase();
-            std.isHot = cls.includes('hot');
-            std.classification = row.classification || row.Classification || cls;
+            // Classification
+            // Look for: classification, Classification, status, type...
+            const clsVal = getField(row, ['classification', 'Classification', 'status', 'lead_status']) || 'Cold';
+            std.classification = clsVal;
+            std.isHot = String(clsVal).toLowerCase().includes('hot');
             
-            // Determine Name
-            std.name = row.business_name || row.Name || row.title || "Unknown";
+            // Name
+            // Look for: business_name, Name, name, title, company, company_name, lead_name
+            std.name = getField(row, ['business_name', 'Business Name', 'Name', 'name', 'title', 'company', 'company_name', 'lead_name', 'screenName']) || "Unknown";
             
-            // Determine Email (string or array)
-            let rawEmail = row.email || row.emails || row.Email || "";
-            std.email = Array.isArray(rawEmail) ? rawEmail[0] : rawEmail;
+            // Email
+            // Look for: email, Email, emails, contactEmail, primary_email
+            let rawEmail = getField(row, ['email', 'Email', 'emails', 'contactEmail', 'primary_email']);
+            std.email = Array.isArray(rawEmail) ? rawEmail[0] : (rawEmail || "");
             
-            // Determine URL
-            let rawUrl = row.website_url || row.website || row.URLs || row.url || "";
-            std.url = Array.isArray(rawUrl) ? rawUrl[0] : rawUrl;
+            // URL
+            // Look for: website_url, website, Website, url, URL, URLs, profile_url, link
+            let rawUrl = getField(row, ['website_url', 'website', 'Website', 'url', 'URL', 'URLs', 'profile_url', 'link', 'facebook_url', 'linkedin_url']);
+            std.url = Array.isArray(rawUrl) ? rawUrl[0] : (rawUrl || "");
             
             return std;
         });
@@ -794,8 +770,8 @@ LEAD GENERATION DASHBOARD
         document.getElementById('total-leads').textContent = normalized.length;
 
         // Render Tables
-        renderTable('hot-leads-table', hot, pipeline);
-        renderTable('other-leads-table', other, pipeline);
+        renderTable('hot-leads-table', hot);
+        renderTable('other-leads-table', other);
 
         // Show Results
         setTimeout(() => {
@@ -805,30 +781,40 @@ LEAD GENERATION DASHBOARD
         }, 1000);
     }
 
-    function renderTable(containerId, data, pipeline) {
+    function renderTable(containerId, data) {
         const container = document.getElementById(containerId);
         if (data.length === 0) {
             container.innerHTML = `<div class="p-8 text-center text-gray-500">No leads in this category.</div>`;
             return;
         }
 
-        // Dynamic Columns based on pipeline/format
-        // We stripped Action, Relevance Score, Keywords as requested
+        // Dynamic Column Detection
+        // We check the first item to see what interesting fields differ from our standard set
         let headers = ['Name', 'Classification', 'Email', 'Link'];
-        
-        // Add specific columns based on pipeline context found in data
-        // Check first item to see what we have
-        const sample = data[0].original;
-        
         let extraColKey = null;
         let extraColLabel = "";
-
-        if (sample.hasOwnProperty('Avg ER')) {
-             headers.push('Engagement Rate');
-             extraColKey = 'Avg ER';
-        } else if (sample.hasOwnProperty('primary_phone_number')) {
-             headers.push('Phone');
-             extraColKey = 'primary_phone_number';
+        
+        if (data.length > 0) {
+            const sample = data[0].original;
+            
+            // Define priority list of extra columns to show if available
+            const extraOptions = [
+                { keys: ['Avg ER', 'avgER'], label: 'Engagement Rate' },
+                { keys: ['primary_phone_number', 'phone', 'Phone', 'phone_number'], label: 'Phone' },
+                { keys: ['followers', 'usersCount', 'Followers'], label: 'Followers' },
+                { keys: ['rating', 'google_rating'], label: 'Rating' },
+                { keys: ['location', 'city', 'City'], label: 'Location' }
+            ];
+            
+            for (const opt of extraOptions) {
+                const foundKey = Object.keys(sample).find(k => opt.keys.includes(k) || opt.keys.includes(k.toLowerCase()));
+                if (foundKey) {
+                    extraColKey = foundKey;
+                    extraColLabel = opt.label;
+                    headers.push(extraColLabel);
+                    break; // Only add one extra column to keep UI clean
+                }
+            }
         }
 
         let html = `
@@ -851,7 +837,7 @@ LEAD GENERATION DASHBOARD
                 let val = row.original[extraColKey];
                 if(Array.isArray(val)) val = val[0];
                 // formatting for ER
-                if(extraColKey === 'Avg ER' && typeof val === 'number') val = (val * 100).toFixed(2) + '%';
+                if((extraColKey === 'Avg ER' || extraColKey === 'avgER') && typeof val === 'number') val = (val * 100).toFixed(2) + '%';
                 extraVal = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${val || '-'}</td>`;
             }
 
@@ -883,15 +869,10 @@ LEAD GENERATION DASHBOARD
         const btn = document.getElementById('send-all-btn');
         const pipeline = document.getElementById('pipeline-select').value;
         
-        // Confirmation
         if(!confirm("Are you sure you want to send emails to all valid leads found?")) return;
 
-        // Payload as requested: Only the pipeline
-        const payload = {
-            pipeline: pipeline
-        };
+        const payload = { pipeline: pipeline };
 
-        // UI: Fake Progress Display with "Nice Details"
         const modal = document.getElementById('sending-modal');
         const status = document.getElementById('sending-status');
         const title = document.getElementById('sending-title');
@@ -901,11 +882,8 @@ LEAD GENERATION DASHBOARD
         title.textContent = "Initiating Email Sequence";
         status.textContent = "Preparing connection...";
         stepsDiv.classList.remove('hidden');
-        
-        // Disable main button
         btn.disabled = true;
 
-        // Start fake visual progress
         setTimeout(() => {
             document.getElementById('step-1').classList.remove('hidden');
             status.textContent = "Packaging lead data...";
@@ -922,16 +900,13 @@ LEAD GENERATION DASHBOARD
         }, 3500);
 
         try {
-            // Real Call
             const response = await fetch(EMAIL_SEND_WEBHOOK, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
             
-            // We wait for the response before showing success
             if (response.ok) {
-                // Success UI
                 title.textContent = "Sequence Started! 🚀";
                 title.classList.add('text-green-600');
                 status.textContent = "The backend has accepted the request.";
@@ -944,7 +919,6 @@ LEAD GENERATION DASHBOARD
             } else {
                 throw new Error("Server responded with error");
             }
-            
         } catch (e) {
             title.textContent = "Error";
             title.classList.add('text-red-600');
@@ -962,6 +936,64 @@ LEAD GENERATION DASHBOARD
     // ========================================
     // UTILS
     // ========================================
+    function simulateCampaignExecution(pipeline) {
+        // Mock data for demo mode
+        simulateWebhookProgressSteps();
+        setTimeout(() => {
+            let mockData = [];
+            if (pipeline.includes('google') || pipeline.includes('map')) {
+                mockData = [
+                     { "lead_number": 1, "business_name": "Tech Corp", "classification": "Hot", "email": "contact@tech.com", "phone": "123456", "website_url": "http://tech.com", "rating": 4.5 },
+                     { "lead_number": 2, "business_name": "Old Bakery", "classification": "Cold", "email": "", "phone": "987654", "website_url": "http://bakery.com", "rating": 3.2 }
+                ];
+            } else if (pipeline.includes('instagram') || pipeline.includes('social')) {
+                 mockData = [
+                     { "Lead Number": 1, "Name": "Sara Beauty", "Classification": "Hot", "email": "sara@social.com", "URLs": ["http://insta.com/sara"], "Avg ER": 0.05 },
+                     { "Lead Number": 2, "Name": "John Doe", "Classification": "Cold", "email": "john@gmail.com", "URLs": ["http://insta.com/john"], "Avg ER": 0.01 }
+                ];
+            } else {
+                 mockData = [
+                     { "lead_number": 1, "business_name": "Fast Plumbers", "classification": "Hot", "email": "info@plumb.com", "website_url": "http://plumb.com" },
+                     { "lead_number": 2, "business_name": "Slow Fix", "classification": "Cold", "email": "admin@fix.com", "website_url": "http://fix.com" }
+                ];
+            }
+            processResults(mockData);
+        }, 5000);
+    }
+
+    function simulateWebhookProgressSteps() {
+        let steps = [
+            { pct: 20, msg: "Getting Leads...🔥" },
+            { pct: 50, msg: "Ranking Hot Leads...🔥🔥🔥" },
+            { pct: 80, msg: "Saving Leads in Google sheet...🔥🔥🔥(1)" }
+        ];
+        let i = 0;
+        let interval = setInterval(() => {
+            if (i >= steps.length) {
+                clearInterval(interval);
+                return;
+            }
+            updateProgress(steps[i].pct, steps[i].msg, "Processing...");
+            logToTerminal(steps[i].msg);
+            i++;
+        }, 1500);
+    }
+
+    function updateProgress(percent, status, detail) {
+        document.getElementById('progress-bar').style.width = `${percent}%`;
+        document.getElementById('progress-percentage').textContent = `${percent}%`;
+        document.getElementById('status-text').textContent = status;
+    }
+
+    function logToTerminal(msg, colorClass = 'text-green-400') {
+        const log = document.getElementById('terminal-log');
+        const entry = document.createElement('div');
+        entry.className = `mb-1 ${colorClass}`;
+        entry.textContent = `> ${msg}`;
+        log.appendChild(entry);
+        log.scrollTop = log.scrollHeight;
+    }
+
     function clearForm() {
         document.getElementById('campaign-json').value = '';
         validateJSON();
@@ -997,9 +1029,8 @@ LEAD GENERATION DASHBOARD
       }, 3000);
     }
     
-    // Init
     window.onload = function() {
-        loadSampleJSON(); // Load initial sample
+        loadSampleJSON(); 
     };
 
   </script>
