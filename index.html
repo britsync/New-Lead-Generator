@@ -655,46 +655,195 @@ LEAD GENERATION DASHBOARD
     }
     
     // ========================================
-    // HELPER: RECURSIVE LEAD FINDER
+    // FIELD MAPPING CONFIGURATION (3-API FLEXIBLE)
     // ========================================
-    function findLeadsArray(obj) {
-        if (!obj) return [];
-        
+    const FIELD_MAPPINGS = {
+        // Name variations from different APIs
+        name: ['business_name', 'businessname', 'Business Name', 'Name', 'name', 'title', 'company', 'company_name', 'companyName', 'lead_name', 'screenName', 'business', 'account_name', 'accountName'],
+
+        // Email variations
+        email: ['email', 'Email', 'emails', 'contact_email', 'contactEmail', 'primary_email', 'primaryEmail', 'email_address', 'emailAddress', 'contact_email_address', 'business_email', 'businessEmail'],
+
+        // Classification/Status variations
+        classification: ['classification', 'Classification', 'status', 'lead_status', 'leadStatus', 'quality', 'lead_quality', 'leadQuality', 'tier', 'type', 'category', 'segment'],
+
+        // Phone variations
+        phone: ['phone', 'Phone', 'phone_number', 'phoneNumber', 'primary_phone', 'primaryPhone', 'contact_phone', 'contactPhone', 'number'],
+
+        // Website/URL variations
+        url: ['website', 'website_url', 'websiteUrl', 'Website', 'url', 'URL', 'URLs', 'profile_url', 'profileUrl', 'link', 'Link', 'facebook_url', 'facebookUrl', 'linkedin_url', 'linkedinUrl', 'website_address', 'web_address', 'domain'],
+
+        // Rating variations
+        rating: ['rating', 'Rating', 'google_rating', 'googleRating', 'review_rating', 'reviewRating', 'stars', 'score', 'rating_value', 'ratingValue'],
+
+        // Engagement/Followers variations
+        engagement: ['engagement_rate', 'engagementRate', 'Avg ER', 'avgER', 'avg_er', 'followers', 'Followers', 'users_count', 'usersCount', 'reach', 'impressions'],
+
+        // Location variations
+        location: ['location', 'Location', 'city', 'City', 'country', 'Country', 'address', 'Address', 'region', 'state']
+    };
+
+    // ========================================
+    // DEEP OBJECT SCANNER (for nested APIs)
+    // ========================================
+    function deepScanForLeads(obj, depth = 0, maxDepth = 5) {
+        if (depth > maxDepth) return [];
+        if (!obj || typeof obj !== 'object') return [];
+
+        // Direct array of objects check
         if (Array.isArray(obj)) {
-            if (obj.length === 0) return obj;
-            if (typeof obj[0] === 'object') return obj;
-            return []; 
-        }
-        
-        if (typeof obj === 'object') {
-            const keysToCheck = ['rows', 'leads', 'data', 'items', 'results', 'output', 'creators', 'businesses'];
-            for (const key of keysToCheck) {
-                if (obj[key] && Array.isArray(obj[key])) {
-                    return findLeadsArray(obj[key]); 
+            if (obj.length > 0 && typeof obj[0] === 'object' && obj[0] !== null) {
+                // Check if array elements look like leads (have email/name fields)
+                const sample = obj[0];
+                const sampleKeys = Object.keys(sample).map(k => k.toLowerCase());
+                if (sampleKeys.some(k => k.includes('email') || k.includes('name') || k.includes('business'))) {
+                    return obj;
                 }
             }
-            if (obj.json && typeof obj.json === 'object') {
-                 return findLeadsArray(obj.json);
+            return [];
+        }
+
+        // Object: check known keys first
+        const keysToCheck = ['rows', 'leads', 'data', 'items', 'results', 'output', 'creators', 'businesses', 'prospects', 'contacts', 'records'];
+        for (const key of keysToCheck) {
+            if (obj[key]) {
+                const result = deepScanForLeads(obj[key], depth + 1, maxDepth);
+                if (Array.isArray(result) && result.length > 0) {
+                    return result;
+                }
             }
         }
+
+        // Fallback: scan ALL object properties for arrays
+        for (const [key, val] of Object.entries(obj)) {
+            if (Array.isArray(val) && val.length > 0) {
+                const result = deepScanForLeads(val, depth + 1, maxDepth);
+                if (Array.isArray(result) && result.length > 0) {
+                    return result;
+                }
+            } else if (typeof val === 'object' && val !== null) {
+                const result = deepScanForLeads(val, depth + 1, maxDepth);
+                if (Array.isArray(result) && result.length > 0) {
+                    return result;
+                }
+            }
+        }
+
         return [];
     }
-    
+
     // ========================================
-    // HELPER: FUZZY FIELD EXTRACTOR
+    // SMART FIELD EXTRACTOR (Multi-API Support)
     // ========================================
-    function getField(row, possibleKeys) {
+    function extractField(row, fieldType) {
+        if (!row || typeof row !== 'object') return null;
+
+        const possibleKeys = FIELD_MAPPINGS[fieldType] || [];
         const rowKeys = Object.keys(row);
         const rowKeysLower = rowKeys.map(k => k.toLowerCase());
-        
-        for (const key of possibleKeys) {
-            const lowerKey = key.toLowerCase();
-            const index = rowKeysLower.indexOf(lowerKey);
-            if (index !== -1) {
-                const val = row[rowKeys[index]];
-                if (val !== null && val !== undefined && val !== "") return val;
+
+        // Try exact match (case-insensitive)
+        for (const possibleKey of possibleKeys) {
+            const lowerPossible = possibleKey.toLowerCase();
+            const foundIndex = rowKeysLower.indexOf(lowerPossible);
+            if (foundIndex !== -1) {
+                const val = row[rowKeys[foundIndex]];
+                if (val !== null && val !== undefined && val !== "") {
+                    return val;
+                }
             }
         }
+
+        // Try partial match (contains substring)
+        for (const possibleKey of possibleKeys) {
+            const lowerPossible = possibleKey.toLowerCase();
+            for (let i = 0; i < rowKeysLower.length; i++) {
+                if (rowKeysLower[i].includes(lowerPossible) || lowerPossible.includes(rowKeysLower[i])) {
+                    const val = row[rowKeys[i]];
+                    if (val !== null && val !== undefined && val !== "") {
+                        return val;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    // ========================================
+    // INTELLIGENT EMAIL PARSER
+    // ========================================
+    function parseEmail(rawEmail) {
+        if (!rawEmail) return "";
+
+        // Already a clean string
+        if (typeof rawEmail === 'string' && rawEmail.includes('@')) {
+            // Handle comma-separated or stringified array
+            if (rawEmail.includes(',')) {
+                return rawEmail.split(',')[0].trim();
+            }
+            if (rawEmail.startsWith('[')) {
+                try {
+                    const parsed = JSON.parse(rawEmail);
+                    return Array.isArray(parsed) ? (parsed[0] || "") : parsed;
+                } catch(e) {
+                    return rawEmail;
+                }
+            }
+            return rawEmail;
+        }
+
+        // Array format
+        if (Array.isArray(rawEmail)) {
+            const first = rawEmail[0];
+            return (typeof first === 'string' ? first : "").trim();
+        }
+
+        // Object format (edge case)
+        if (typeof rawEmail === 'object') {
+            return rawEmail.primary || rawEmail.email || rawEmail.main || "";
+        }
+
+        return String(rawEmail || "");
+    }
+
+    // ========================================
+    // CLASSIFICATION DETECTOR
+    // ========================================
+    function detectClassification(rawClassification, thresholdScore = null) {
+        if (!rawClassification) return "Cold";
+
+        const str = String(rawClassification).toLowerCase();
+
+        // Hot keywords
+        if (str.includes('hot') || str.includes('priority') || str.includes('high') || str === 'a' || str === '1' || str === 'true') {
+            return "Hot";
+        }
+
+        // Numeric score detection (if threshold provided)
+        if (thresholdScore && !isNaN(rawClassification)) {
+            const score = parseFloat(rawClassification);
+            return score >= thresholdScore ? "Hot" : "Cold";
+        }
+
+        // Default cold
+        return "Cold";
+    }
+
+    // ========================================
+    // HELPER: RECURSIVE LEAD FINDER (LEGACY)
+    // ========================================
+    function findLeadsArray(obj) {
+        return deepScanForLeads(obj);
+    }
+
+    // ========================================
+    // HELPER: GET FIELD (LEGACY)
+    // ========================================
+    function getField(row, possibleKeys) {
+        // For backward compatibility - use first fieldType from FIELD_MAPPINGS
+        return extractField(row, 'name');
+    }        }
         return null;
     }
 
@@ -704,58 +853,64 @@ LEAD GENERATION DASHBOARD
 
     function processResults(rawData) {
         updateProgress(100, 'Completed', 'Rendering dashboard...');
-        
+
         const rows = findLeadsArray(rawData);
-        
+
         if (rows.length === 0) {
             showToast("No leads found in response", "error");
-            logToTerminal("Warning: Parsed JSON but found no array of leads.", "text-yellow-400");
+            logToTerminal("Warning: Parsed JSON but found no array of leads. Response: " + JSON.stringify(rawData).substring(0, 200), "text-yellow-400");
             return;
         }
 
         let hot = [];
         let other = [];
-        
+
         const normalized = rows.map(row => {
             let std = { original: row };
-            
-            // Classification
-            const clsVal = getField(row, ['classification', 'Classification', 'status', 'lead_status']) || 'Cold';
-            std.classification = clsVal;
-            std.isHot = String(clsVal).toLowerCase().includes('hot');
-            
+
+            // Classification (with flexibility for different API formats)
+            const clsVal = extractField(row, 'classification') || 'Cold';
+            std.classification = detectClassification(clsVal);
+            std.isHot = std.classification === 'Hot';
+
             // Name
-            std.name = getField(row, ['business_name', 'Business Name', 'Name', 'name', 'title', 'company', 'company_name', 'lead_name', 'screenName']) || "Unknown";
-            
-            // Email - Enhanced for array strings
-            let rawEmail = getField(row, ['email', 'Email', 'emails', 'contactEmail', 'primary_email']);
-            
-            if (typeof rawEmail === 'string' && (rawEmail.startsWith('[') || rawEmail.includes(','))) {
-                 // Try parsing stringified array
-                 try { 
-                    let parsed = JSON.parse(rawEmail); 
-                    std.email = Array.isArray(parsed) ? parsed[0] : parsed; 
-                 } catch(e) {
-                    // Split by comma if not json
-                    std.email = rawEmail.split(',')[0].trim();
-                 }
-            } else if (Array.isArray(rawEmail)) {
-                std.email = rawEmail[0];
-            } else {
-                std.email = rawEmail || "";
-            }
-            
+            std.name = extractField(row, 'name') || "Unknown";
+
+            // Email - Enhanced parsing
+            let rawEmail = extractField(row, 'email');
+            std.email = parseEmail(rawEmail);
+
+            // Phone
+            std.phone = extractField(row, 'phone') || "";
+
             // URL
-            let rawUrl = getField(row, ['website_url', 'website', 'Website', 'url', 'URL', 'URLs', 'profile_url', 'link', 'facebook_url', 'linkedin_url']);
+            let rawUrl = extractField(row, 'url');
             if (Array.isArray(rawUrl)) rawUrl = rawUrl[0];
             std.url = rawUrl || "";
-            
+
+            // Rating
+            let rawRating = extractField(row, 'rating');
+            std.rating = rawRating ? parseFloat(rawRating) : null;
+
+            // Engagement/Followers
+            let rawEngage = extractField(row, 'engagement');
+            if (typeof rawEngage === 'string' && rawEngage.includes('%')) {
+                std.engagement = parseFloat(rawEngage) / 100;
+            } else if (!isNaN(rawEngage)) {
+                std.engagement = parseFloat(rawEngage) > 1 ? parseFloat(rawEngage) / 100 : parseFloat(rawEngage);
+            } else {
+                std.engagement = rawEngage || "";
+            }
+
+            // Location
+            std.location = extractField(row, 'location') || "";
+
             return std;
         });
 
         hot = normalized.filter(i => i.isHot);
         other = normalized.filter(i => !i.isHot);
-        
+
         state.hotLeads = hot;
         state.otherLeads = other;
         state.allLeads = normalized;
@@ -778,7 +933,7 @@ LEAD GENERATION DASHBOARD
             window.scrollTo({ top: document.getElementById('results-section').offsetTop, behavior: 'smooth' });
         }, 1000);
     }
-
+    
     function renderTable(containerId, data) {
         const container = document.getElementById(containerId);
         if (data.length === 0) {
