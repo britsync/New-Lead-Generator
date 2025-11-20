@@ -602,67 +602,53 @@ LEAD GENERATION DASHBOARD
         // Finished reading
         buffer += decoder.decode(); 
         
-        // Robust JSON Extraction: Scan for ANY JSON structure
+        // BRUTE FORCE JSON EXTRACTION
+        // Find the largest substring that starts with [ and ends with ]
+        let jsonStartIndex = buffer.indexOf('[');
+        let jsonEndIndex = buffer.lastIndexOf(']');
+        
         let parsedResult = null;
-        
-        // Try searching for JSON array [...] or object {...} 
-        // We scan from the end backwards to find the most likely payload
-        let bestCandidate = null;
-        
-        const bracketPairs = [['[', ']'], ['{', '}']];
-        
-        for (const pair of bracketPairs) {
-            const open = pair[0];
-            const close = pair[1];
-            
-            // Find first open bracket
-            const startIdx = buffer.indexOf(open);
-            if (startIdx !== -1) {
-                // Try to parse from startIdx to the end, or to last close bracket
-                try {
-                    // Attempt 1: Substring to end
-                    const attempt1 = JSON.parse(buffer.substring(startIdx));
-                    parsedResult = attempt1;
-                    break;
-                } catch (e) {
-                    // Attempt 2: Substring to last matching bracket
-                    const lastClose = buffer.lastIndexOf(close);
-                    if (lastClose > startIdx) {
-                         try {
-                             const attempt2 = JSON.parse(buffer.substring(startIdx, lastClose + 1));
-                             parsedResult = attempt2;
-                             break;
-                         } catch (e2) {
-                             // continue searching
-                         }
-                    }
-                }
+
+        if (jsonStartIndex !== -1 && jsonEndIndex > jsonStartIndex) {
+            const potentialJson = buffer.substring(jsonStartIndex, jsonEndIndex + 1);
+            try {
+                parsedResult = JSON.parse(potentialJson);
+                console.log("Successfully parsed JSON from stream via brute force");
+            } catch (e) {
+                console.warn("Brute force JSON parse failed", e);
+                // Fallback: try to clean it up? (e.g. remove trailing commas, etc. if needed)
             }
+        }
+
+        // If array fail, try object
+        if (!parsedResult) {
+             let objStart = buffer.indexOf('{');
+             let objEnd = buffer.lastIndexOf('}');
+             if (objStart !== -1 && objEnd > objStart) {
+                 try {
+                     parsedResult = JSON.parse(buffer.substring(objStart, objEnd + 1));
+                 } catch(e) {}
+             }
         }
 
         if (parsedResult) {
             processResults(parsedResult);
         } else {
             // FALLBACK: NO ERROR THROWN
-            // Just show what we got in the terminal
             console.warn("Buffer content:", buffer);
-            
-            // Check if we at least got some text events
             if (buffer.includes("Getting Leads") || buffer.includes("Ranking")) {
                  logToTerminal("Stream finished. No final JSON detected.", "text-yellow-400");
                  logToTerminal("Raw response received:", "text-gray-400");
+                 // Print first 500 chars of buffer to see what we got
                  logToTerminal(buffer.substring(0, 500) + (buffer.length > 500 ? "..." : ""), "text-gray-500");
                  updateProgress(100, "Campaign Ended", "Check Google Sheet or Email for results.");
             } else {
-                 // Nothing received?
                  logToTerminal("Workflow completed but returned no recognizable data.", "text-yellow-400");
                  updateProgress(100, "Completed (No Data)", "Workflow finished.");
             }
-            // We DO NOT throw an error here, keeping the UI alive.
         }
 
       } catch (e) {
-        // Network errors are still real errors
         logToTerminal('Network Error: ' + e.message, 'text-red-500');
         showToast('Connection issue: ' + e.message, 'error');
       }
@@ -674,28 +660,23 @@ LEAD GENERATION DASHBOARD
     function findLeadsArray(obj) {
         if (!obj) return [];
         
-        // Case 1: It's already an array
         if (Array.isArray(obj)) {
             if (obj.length === 0) return obj;
             if (typeof obj[0] === 'object') return obj;
             return []; 
         }
         
-        // Case 2: Wrapped in common keys
         if (typeof obj === 'object') {
             const keysToCheck = ['rows', 'leads', 'data', 'items', 'results', 'output', 'creators', 'businesses'];
-            
             for (const key of keysToCheck) {
                 if (obj[key] && Array.isArray(obj[key])) {
-                    return findLeadsArray(obj[key]); // Recurse in case of nested wrappers
+                    return findLeadsArray(obj[key]); 
                 }
             }
-            
             if (obj.json && typeof obj.json === 'object') {
                  return findLeadsArray(obj.json);
             }
         }
-        
         return [];
     }
     
@@ -724,7 +705,6 @@ LEAD GENERATION DASHBOARD
     function processResults(rawData) {
         updateProgress(100, 'Completed', 'Rendering dashboard...');
         
-        // 1. Flexible Extraction
         const rows = findLeadsArray(rawData);
         
         if (rows.length === 0) {
@@ -736,7 +716,6 @@ LEAD GENERATION DASHBOARD
         let hot = [];
         let other = [];
         
-        // 2. Universal Normalization
         const normalized = rows.map(row => {
             let std = { original: row };
             
@@ -748,13 +727,28 @@ LEAD GENERATION DASHBOARD
             // Name
             std.name = getField(row, ['business_name', 'Business Name', 'Name', 'name', 'title', 'company', 'company_name', 'lead_name', 'screenName']) || "Unknown";
             
-            // Email
+            // Email - Enhanced for array strings
             let rawEmail = getField(row, ['email', 'Email', 'emails', 'contactEmail', 'primary_email']);
-            std.email = Array.isArray(rawEmail) ? rawEmail[0] : (rawEmail || "");
+            
+            if (typeof rawEmail === 'string' && (rawEmail.startsWith('[') || rawEmail.includes(','))) {
+                 // Try parsing stringified array
+                 try { 
+                    let parsed = JSON.parse(rawEmail); 
+                    std.email = Array.isArray(parsed) ? parsed[0] : parsed; 
+                 } catch(e) {
+                    // Split by comma if not json
+                    std.email = rawEmail.split(',')[0].trim();
+                 }
+            } else if (Array.isArray(rawEmail)) {
+                std.email = rawEmail[0];
+            } else {
+                std.email = rawEmail || "";
+            }
             
             // URL
             let rawUrl = getField(row, ['website_url', 'website', 'Website', 'url', 'URL', 'URLs', 'profile_url', 'link', 'facebook_url', 'linkedin_url']);
-            std.url = Array.isArray(rawUrl) ? rawUrl[0] : (rawUrl || "");
+            if (Array.isArray(rawUrl)) rawUrl = rawUrl[0];
+            std.url = rawUrl || "";
             
             return std;
         });
@@ -792,7 +786,6 @@ LEAD GENERATION DASHBOARD
             return;
         }
 
-        // Dynamic Column Detection
         let headers = ['Name', 'Classification', 'Email', 'Link'];
         let extraColKey = null;
         let extraColLabel = "";
@@ -800,7 +793,7 @@ LEAD GENERATION DASHBOARD
         if (data.length > 0) {
             const sample = data[0].original;
             
-            // Priority list
+            // Updated priority list based on example files
             const extraOptions = [
                 { keys: ['Avg ER', 'avgER'], label: 'Engagement Rate' },
                 { keys: ['primary_phone_number', 'phone', 'Phone', 'phone_number'], label: 'Phone' },
@@ -838,7 +831,10 @@ LEAD GENERATION DASHBOARD
             let extraVal = "";
             if(extraColKey) {
                 let val = row.original[extraColKey];
-                if(Array.isArray(val)) val = val[0];
+                // Handle array of phones like ["44020...", "3118..."]
+                if(Array.isArray(val)) {
+                    val = val[0]; 
+                }
                 if((extraColKey === 'Avg ER' || extraColKey === 'avgER') && typeof val === 'number') val = (val * 100).toFixed(2) + '%';
                 extraVal = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${val || '-'}</td>`;
             }
@@ -939,7 +935,6 @@ LEAD GENERATION DASHBOARD
     // UTILS
     // ========================================
     function simulateCampaignExecution(pipeline) {
-        // Mock data for demo mode
         simulateWebhookProgressSteps();
         setTimeout(() => {
             let mockData = [];
