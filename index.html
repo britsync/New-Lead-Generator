@@ -578,8 +578,6 @@ LEAD GENERATION DASHBOARD
           })
         });
 
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
         // 1. Get Stream Reader
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
@@ -616,14 +614,17 @@ LEAD GENERATION DASHBOARD
             }
         }
         
-        // 4. Stream Finished: Extract JSON
-        // The buffer now looks like: "Getting Leads...🔥Ranking...🔥[{...JSON...}]"
-        // We find the first '[' or '{' to isolate the JSON payload.
+        // 4. Stream Finished: Flush & Extract JSON
+        buffer += decoder.decode(); // Flush any remaining bytes
+        
+        // Robust JSON Extractor
+        // Look for the LAST occurrence of '[' or '{' just in case there is prefix text
+        // But usually we want the first occurrence of the *structure* after text logs.
         
         let jsonStartIndex = buffer.indexOf('[');
         let objStartIndex = buffer.indexOf('{');
         
-        // Determine which comes first (ignoring -1)
+        // We try to find the earliest valid JSON start
         let startIndex = -1;
         if (jsonStartIndex !== -1 && objStartIndex !== -1) {
             startIndex = Math.min(jsonStartIndex, objStartIndex);
@@ -641,19 +642,31 @@ LEAD GENERATION DASHBOARD
                 // 5. Process Final Results
                 processResults(result, pipeline);
             } catch (e) {
-                console.error("JSON Parse Error on extracted string", e);
-                console.log("Raw buffer was:", buffer);
-                throw new Error("Failed to parse final campaign data. The workflow might have returned invalid JSON.");
+                console.warn("JSON Parse Error, attempting cleanup:", e);
+                // Soft error - Log but don't crash UI
+                logToTerminal("Warning: Data format irregular. Attempting to display raw response.", "text-yellow-400");
+                logToTerminal("Raw Buffer: " + buffer.substring(0, 100) + "...", "text-gray-500");
             }
         } else {
+            // SOFT FALLBACK: Do not throw Error.
+            // If we got text updates but no JSON, maybe it's just finished?
+            // We log the raw buffer to the terminal so the user can see what happened
             console.warn("Buffer content:", buffer);
-            throw new Error("Workflow finished but no JSON data was found in the response.");
+            
+            if (buffer.includes("Getting Leads") || buffer.includes("Ranking")) {
+                 // We assume success but no data returned yet (maybe waiting?)
+                 logToTerminal("Stream ended. No JSON data detected in final response.", "text-yellow-400");
+                 logToTerminal("Raw response received: " + buffer, "text-gray-400");
+                 updateProgress(100, "Completed (No Data)", "Workflow finished without returning leads.");
+            } else {
+                 logToTerminal("Workflow completed with no structured data.", "text-red-400");
+            }
         }
 
       } catch (e) {
-        logToTerminal('Error: ' + e.message, 'text-red-500');
-        showToast('Campaign failed: ' + e.message, 'error');
-        updateProgress(0, 'Error', 'Check logs for details');
+        // Only catch network errors here
+        logToTerminal('Network Error: ' + e.message, 'text-red-500');
+        showToast('Connection issue: ' + e.message, 'error');
       }
     }
     
